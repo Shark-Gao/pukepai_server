@@ -21,12 +21,10 @@ jobs:
         
     - name: Install dependencies
       run: |
-        cd pukepai_server
         npm install
         
     - name: Run tests
       run: |
-        cd pukepai_server
         npm run build
         
     - name: Deploy to Render
