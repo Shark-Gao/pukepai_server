@@ -54,7 +54,8 @@ async function initializePostgreSQL() {
         
     } catch (error) {
         console.error('PostgreSQL数据库初始化失败:', error.message);
-        process.exit(1);
+        console.error('数据库初始化失败，但服务将继续启动...');
+        // 不调用 process.exit(1)，避免阻断服务启动
     }
 }
 
