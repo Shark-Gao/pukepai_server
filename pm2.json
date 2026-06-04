@@ -1,11 +1,13 @@
 {
-  "name": "musicServer",
+  "name": "pukepai-server",
   "script": "./puke_server/index.js",
   "instances": "1",
   "env": {
-    "NODE_ENV": "development"
+    "NODE_ENV": "development",
+    "DB_TYPE": "mysql"
   },
   "env_production": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "DB_TYPE": "postgres"
   }
 }

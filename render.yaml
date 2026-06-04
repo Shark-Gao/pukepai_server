@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: doudizhu-game-server
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run render:init && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: doudizhu-game-db
+          property: connectionString
+
+databases:
+  - name: doudizhu-game-db
+    plan: free
+    databaseName: doudizhu_game
+    ipAllowList: []
