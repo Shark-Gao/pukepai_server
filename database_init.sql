@@ -173,10 +173,10 @@ BEGIN
     ELSE
         PERFORM setval('users_id_seq', 10007, false); -- 从最后一个测试用户ID之后开始
     END IF;
+    
+    -- 打印成功信息（必须在事务内部）
+    RAISE NOTICE '数据库初始化完成，脚本可安全重复执行';
 END $$;
 
 -- 提交事务
 COMMIT;
-
--- 打印成功信息
-RAISE NOTICE '数据库初始化完成，脚本可安全重复执行';
