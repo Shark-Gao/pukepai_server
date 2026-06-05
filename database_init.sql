@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS feedback (
 -- ----------------------------
 -- 游戏记录表
 -- ----------------------------
-CREATE TABLE game_record (
+CREATE TABLE IF NOT EXISTS game_record (
   id SERIAL PRIMARY KEY,
   create_time TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
   update_time TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL DEFAULT '0001-01-01 00:00:00',
@@ -85,7 +85,7 @@ EXECUTE FUNCTION update_update_time();
 -- ----------------------------
 -- 房间等级表
 -- ----------------------------
-CREATE TABLE room_level (
+CREATE TABLE IF NOT EXISTS room_level (
   id INTEGER PRIMARY KEY,
   level VARCHAR(255) NOT NULL,
   base VARCHAR(255) NOT NULL
@@ -98,7 +98,7 @@ COMMENT ON COLUMN room_level.base IS '基数';
 -- ----------------------------
 -- 用户表
 -- ----------------------------
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   user_id VARCHAR(255) NOT NULL,
   user_name VARCHAR(255) NOT NULL,
