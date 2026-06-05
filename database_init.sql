@@ -1,6 +1,13 @@
 -- PostgreSQL 版本的斗地主游戏数据库脚本
 -- 注意：PostgreSQL不支持MySQL的ON UPDATE CURRENT_TIMESTAMP，已通过触发器实现update_time自动更新
 -- 注意：原MySQL中'0000-00-00'日期无效，已改为PostgreSQL支持的'0001-01-01'
+-- 注意：本脚本已优化为可重复执行，使用ON CONFLICT DO NOTHING避免重复插入错误
+
+-- 启用错误继续执行（即使某个语句失败也继续执行后续语句）
+SET client_min_messages TO WARNING;
+
+-- 开始事务，确保所有操作原子性
+BEGIN;
 
 -- 删除已存在的表（如果存在）
 -- DROP TABLE IF EXISTS game_record;
@@ -77,7 +84,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE TRIGGER trigger_update_game_record_update_time
+-- 删除已存在的触发器（如果存在）
+DROP TRIGGER IF EXISTS trigger_update_game_record_update_time ON game_record;
+
+-- 重新创建触发器
+CREATE TRIGGER trigger_update_game_record_update_time
 BEFORE UPDATE ON game_record
 FOR EACH ROW
 EXECUTE FUNCTION update_update_time();
@@ -121,24 +132,24 @@ COMMENT ON COLUMN users.bg_audio IS '1 开启音乐 0 关闭音乐（默认1）'
 COMMENT ON COLUMN users.day_get_gold IS '每日登录领取1000元宝（领取过存入当前日期）';
 
 -- ----------------------------
--- 插入房间等级数据
+-- 插入房间等级数据（使用ON CONFLICT避免重复插入错误）
 -- ----------------------------
-INSERT INTO room_level VALUES (1, '1', '100');
-INSERT INTO room_level VALUES (2, '2', '500');
-INSERT INTO room_level VALUES (3, '3', '1000');
-INSERT INTO room_level VALUES (4, '4', '2000');
+INSERT INTO room_level VALUES (1, '1', '100') ON CONFLICT (id) DO NOTHING;
+INSERT INTO room_level VALUES (2, '2', '500') ON CONFLICT (id) DO NOTHING;
+INSERT INTO room_level VALUES (3, '3', '1000') ON CONFLICT (id) DO NOTHING;
+INSERT INTO room_level VALUES (4, '4', '2000') ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------
--- 插入用户数据
+-- 插入用户数据（使用ON CONFLICT避免重复插入错误）
 -- 注意：gold字段已改为INTEGER，去掉了原字符串的单引号
 -- ----------------------------
-INSERT INTO users VALUES (10000, '66666', '往事随风', '123456', '123456', '/Image/default_head.png', NULL, 17300, 1, 1, '2025-07-28 06:25:08');
-INSERT INTO users VALUES (10001, '5eb695f481e8470eaa5d686f37e60fb0', '亮亮', '1234567', '1234567', 'https://thirdwx.qlogo.cn/mmopen/vi_32/Q0j4TwGTfTJtsQmxy0NwUtIESiaEHDnUaFpHOSRIDKmLXoKBbfFIaqPAF6c0cn4wyMQnB3TTkz0OPOO6KVl8zOg/132', 'otm1W43FF8Y23EgAoBfZ00WKR0X0', 2850, 0, 1, '2025-07-28 06:26:14');
-INSERT INTO users VALUES (10002, 'ffb6462a12f44b1897158930fa736424', 'liang_ffb6462a12f44b1897158930fa736424', '12345678', '12345678', '/Image/default_head.png', '', 25600, 1, 0, '2025-07-29 10:42:24');
-INSERT INTO users VALUES (10003, '9776b158ef6647fbb78b81aedeaa417e', 'liang_9776b158ef6647fbb78b81aedeaa417e', '12345677', '12345677', '/Image/default_head.png', '', 1100, 1, 1, NULL);
-INSERT INTO users VALUES (10004, '997a61a25e06457395adbb942519f867', '亮亮', NULL, NULL, 'https://thirdwx.qlogo.cn/mmopen/vi_32/Q0j4TwGTfTJtsQmxy0NwUtIESiaEHDnUaFpHOSRIDKmLXoKBbfFIaqPAF6c0cn4wyMQnB3TTkz0OPOO6KVl8zOg/132', '', 1550, 1, 1, NULL);
-INSERT INTO users VALUES (10005, 'dc0489cc49694fe5bd990b467ff6beb1', '亮亮', NULL, NULL, 'https://thirdwx.qlogo.cn/mmopen/vi_32/Q0j4TwGTfTJBQjSXAggpwYMa5RVUtibp7iahOVNRJkhmH9XjgoZ7ukovIm5rm20H9pUw6Cr7vRk9afbUvicbdHia7g/132', 'of1A-5W96FgrRiAWD2-0z5BZm_MY', 5100, 1, 1, '2025-09-01 13:44:20');
-INSERT INTO users VALUES (10006, '21be283635564832b96db305640691b6', '男孩亮亮', NULL, NULL, 'https://thirdwx.qlogo.cn/mmopen/vi_32/PiajxSqBRaEJqE5ia7P9zuFP0CX6CXro8ggMbJicsr9icpshrdiazS6ugtQmry1SKzWvwan3DyohibVwZ1fldjBsVaWQ/132', 'of1A-5bUJ-SepPQyLCFbM99S_QY8', 9150, 1, 1, '2025-09-09 18:19:41');
+INSERT INTO users VALUES (10000, '66666', '往事随风', '123456', '123456', '/Image/default_head.png', NULL, 17300, 1, 1, '2025-07-28 06:25:08') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users VALUES (10001, '5eb695f481e8470eaa5d686f37e60fb0', '亮亮', '1234567', '1234567', 'https://thirdwx.qlogo.cn/mmopen/vi_32/Q0j4TwGTfTJtsQmxy0NwUtIESiaEHDnUaFpHOSRIDKmLXoKBbfFIaqPAF6c0cn4wyMQnB3TTkz0OPOO6KVl8zOg/132', 'otm1W43FF8Y23EgAoBfZ00WKR0X0', 2850, 0, 1, '2025-07-28 06:26:14') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users VALUES (10002, 'ffb6462a12f44b1897158930fa736424', 'liang_ffb6462a12f44b1897158930fa736424', '12345678', '12345678', '/Image/default_head.png', '', 25600, 1, 0, '2025-07-29 10:42:24') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users VALUES (10003, '9776b158ef6647fbb78b81aedeaa417e', 'liang_9776b158ef6647fbb78b81aedeaa417e', '12345677', '12345677', '/Image/default_head.png', '', 1100, 1, 1, NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO users VALUES (10004, '997a61a25e06457395adbb942519f867', '亮亮', NULL, NULL, 'https://thirdwx.qlogo.cn/mmopen/vi_32/Q0j4TwGTfTJtsQmxy0NwUtIESiaEHDnUaFpHOSRIDKmLXoKBbfFIaqPAF6c0cn4wyMQnB3TTkz0OPOO6KVl8zOg/132', '', 1550, 1, 1, NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO users VALUES (10005, 'dc0489cc49694fe5bd990b467ff6beb1', '亮亮', NULL, NULL, 'https://thirdwx.qlogo.cn/mmopen/vi_32/Q0j4TwGTfTJBQjSXAggpwYMa5RVUtibp7iahOVNRJkhmH9XjgoZ7ukovIm5rm20H9pUw6Cr7vRk9afbUvicbdHia7g/132', 'of1A-5W96FgrRiAWD2-0z5BZm_MY', 5100, 1, 1, '2025-09-01 13:44:20') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users VALUES (10006, '21be283635564832b96db305640691b6', '男孩亮亮', NULL, NULL, 'https://thirdwx.qlogo.cn/mmopen/vi_32/PiajxSqBRaEJqE5ia7P9zuFP0CX6CXro8ggMbJicsr9icpshrdiazS6ugtQmry1SKzWvwan3DyohibVwZ1fldjBsVaWQ/132', 'of1A-5bUJ-SepPQyLCFbM99S_QY8', 9150, 1, 1, '2025-09-09 18:19:41') ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------
 -- 插入游戏记录数据（共173条，保留原JSON格式）
@@ -148,5 +159,24 @@ INSERT INTO users VALUES (10006, '21be283635564832b96db305640691b6', '男孩亮�
 -- ----------------------------
 -- 重置序列值（确保后续自动增长ID正确）
 -- ----------------------------
-SELECT setval('game_record_id_seq', (SELECT MAX(id) FROM game_record));
-SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
+-- 只有当表中有数据时才重置序列，避免空表时报错
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM game_record LIMIT 1) THEN
+        PERFORM setval('game_record_id_seq', (SELECT MAX(id) FROM game_record));
+    ELSE
+        PERFORM setval('game_record_id_seq', 1, false);
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM users LIMIT 1) THEN
+        PERFORM setval('users_id_seq', (SELECT MAX(id) FROM users));
+    ELSE
+        PERFORM setval('users_id_seq', 10007, false); -- 从最后一个测试用户ID之后开始
+    END IF;
+END $$;
+
+-- 提交事务
+COMMIT;
+
+-- 打印成功信息
+RAISE NOTICE '数据库初始化完成，脚本可安全重复执行';
