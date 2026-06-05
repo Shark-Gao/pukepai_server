@@ -77,7 +77,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_update_game_record_update_time
+CREATE OR REPLACE TRIGGER trigger_update_game_record_update_time
 BEFORE UPDATE ON game_record
 FOR EACH ROW
 EXECUTE FUNCTION update_update_time();
