@@ -34,7 +34,7 @@ export default class wxApi {
       let userRows;
       if (getRegister) {
         // 查询数据库，判断用户是否存在，不存在客户端获取用户信息传递给服务端
-        [userRows] = await pool.inst.query(`select * from user where wx_openid = ?`, [openid])
+        [userRows] = await pool.inst.query(`select * from users where wx_openid = ?`, [openid])
       }
 
 
@@ -58,7 +58,7 @@ export default class wxApi {
     const { openid, wxUserInfo } = ctx.request.body || {};
 
     // 查询数据库，判断用户是否存在，不存在 则注册，存在则登录
-    const [rows] = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from user where wx_openid = ?`, [openid])
+    const [rows] = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from users where wx_openid = ?`, [openid])
 
     // @ts-ignore
     if (rows.length > 0) {
@@ -66,7 +66,7 @@ export default class wxApi {
     } else {
       // 微信注册账号
       const idWithoutDashes = v4().replace(/-/g, '');
-      await pool.inst.query(`insert into user (user_name, user_id,  user_head_img, wx_openid) values (?,?,?,?)`, [wxUserInfo.nickName, idWithoutDashes, wxUserInfo.avatarUrl, openid]);
+      await pool.inst.query(`insert into users (user_name, user_id,  user_head_img, wx_openid) values (?,?,?,?)`, [wxUserInfo.nickName, idWithoutDashes, wxUserInfo.avatarUrl, openid]);
       wxApi.wxOpenIdLogin(ctx, openid)
     }
   }
@@ -81,7 +81,7 @@ export default class wxApi {
     var rows: any = userRows
     if (!rows) {
       // 查询数据库，判断用户是否存在，不存在 则注册，存在则登录
-      [rows] = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from user where wx_openid = ?`, [openid])
+      [rows] = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from users where wx_openid = ?`, [openid])
     }
 
     // @ts-ignore

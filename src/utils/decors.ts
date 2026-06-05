@@ -87,7 +87,7 @@ export const authSocketToken = (data: any = {}) => {
         }));
       } else {
         // 给参数上面添加token解析出来的用户信息，不信任客户端传入的用户信息，再从数据库查询通过用户id查询获取用户信息。
-        // const [userInfoDb]: any = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from user where user_id = ?`, [verify(token).decoded.user_id]);
+        // const [userInfoDb]: any = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from users where user_id = ?`, [verify(token).decoded.user_id]);
         // args[0].userInfo = userInfoDb[0];
         args[0].userInfo = verify(token).decoded;
         return originalMethod.apply(this, args);

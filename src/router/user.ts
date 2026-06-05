@@ -23,7 +23,7 @@ export default class User {
 
     console.log("userInfo", userInfo)
     try {
-      const [rows] = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold, game_audio, bg_audio from user where user_id = ?`, [userInfo.user_id])
+      const [rows] = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold, game_audio, bg_audio from users where user_id = ?`, [userInfo.user_id])
       // @ts-ignore
       if (rows.length > 0) {
         ctx.body = {
@@ -358,7 +358,7 @@ export default class User {
     const { userInfo } = ctx.request.body || {};
 
     try {
-      let [rows]: any = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold, game_audio, bg_audio from user where user_id = ?`, [userInfo.user_id])
+      let [rows]: any = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold, game_audio, bg_audio from users where user_id = ?`, [userInfo.user_id])
       if (rows.length > 0) {
         ctx.body = {
           code: 200,
@@ -390,7 +390,7 @@ export default class User {
     const { userInfo, audioStatus } = ctx.request.body || {};
 
     try {
-      let [rows]: any = await pool.inst.query(`update user set game_audio = ? where user_id = ?`, [audioStatus, userInfo.user_id])
+      let [rows]: any = await pool.inst.query(`update users set game_audio = ? where user_id = ?`, [audioStatus, userInfo.user_id])
 
       ctx.body = {
         code: 200,
@@ -412,7 +412,7 @@ export default class User {
     const { userInfo, audioStatus } = ctx.request.body || {};
 
     try {
-      let [rows]: any = await pool.inst.query(`update user set bg_audio = ? where user_id = ?`, [audioStatus, userInfo.user_id])
+      let [rows]: any = await pool.inst.query(`update users set bg_audio = ? where user_id = ?`, [audioStatus, userInfo.user_id])
 
       ctx.body = {
         code: 200,
@@ -437,7 +437,7 @@ export default class User {
 
     try {
       // 查询该微信是否已经绑定账号
-      let [userRows]: any = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold, game_audio from user where wx_openid = ?`, [openid])
+      let [userRows]: any = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold, game_audio from users where wx_openid = ?`, [openid])
       if (userRows.length > 0) {
         return ctx.body = {
           code: 200,
@@ -447,7 +447,7 @@ export default class User {
       }
 
       // 绑定微信账号
-      const [rows] = await pool.inst.query(`update user set wx_openid = ?, user_name = ?, user_head_img = ? where user_id = ?`, [openid, wxUserInfo.nickName, wxUserInfo.avatarUrl, userInfo.user_id]);
+      const [rows] = await pool.inst.query(`update users set wx_openid = ?, user_name = ?, user_head_img = ? where user_id = ?`, [openid, wxUserInfo.nickName, wxUserInfo.avatarUrl, userInfo.user_id]);
 
       console.log("rows", rows)
 
@@ -481,14 +481,14 @@ export default class User {
 
     try {
       // 查询该微信是否已经绑定账号
-      let [userRows]: any = await pool.inst.query(`select day_get_gold, gold from user where user_id = ?`, [userInfo.user_id])
+      let [userRows]: any = await pool.inst.query(`select day_get_gold, gold from users where user_id = ?`, [userInfo.user_id])
 
       if (userRows.length > 0) {
         const { year, month, day } = userRows[0]?.day_get_gold ? timestampToDate(userRows[0].day_get_gold) : {};
         const { year: locYear, month: locMonth, day: locDay } = timestampToDate(new Date().getTime());
         if (year != locYear || month != locMonth || day != locDay) {
           // 更新用户金币
-          let [rows] = await pool.inst.query(`update user set gold = gold + ?, day_get_gold = ? where user_id = ?`, [1000, new Date(), userInfo.user_id]);
+          let [rows] = await pool.inst.query(`update users set gold = gold + ?, day_get_gold = ? where user_id = ?`, [1000, new Date(), userInfo.user_id]);
 
           // @ts-ignore
           if (rows.affectedRows > 0) {
@@ -559,7 +559,7 @@ export default class User {
       };
     } else {
       // 查询用户信息获取用户元宝
-      const [userInfos]: any = await pool.inst.query(`select * from user where user_id = ?`, [userId]);
+      const [userInfos]: any = await pool.inst.query(`select * from users where user_id = ?`, [userId]);
 
       if (userInfos.length > 0) {
         // 传入了房间ID，证明是要加入房间，对比当前用户元宝和房间元宝基数做对比

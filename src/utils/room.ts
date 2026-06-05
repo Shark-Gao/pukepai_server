@@ -187,7 +187,7 @@ const RoomObj: RoomObj = {};
 const CreateRoom = async ({ userInfo, level, roomType = RoomType.USERCREATE }: any) => {
   // 获取房间等级信息
   const [rows]: any = await pool.inst.query(`select id, level, base from room_level`)
-  const [userInfoDb]: any = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from user where user_id = ?`, [userInfo.user_id]);
+  const [userInfoDb]: any = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from users where user_id = ?`, [userInfo.user_id]);
 
   console.log(userInfoDb);
 

@@ -206,7 +206,7 @@ export class webSocketPlayCardRouter {
   private static async gameOver(roomId, userId) {
     const roomInfo = RoomObj[roomId];
     // 游戏结束要结算用户的元宝，获取数据库玩家最新的元宝数据
-    const [rows]: any = await pool.inst.query(`select user_id, gold, user_account from user where user_id in ("${roomInfo.roomUserIdList[0]}","${roomInfo.roomUserIdList[1]}","${roomInfo.roomUserIdList[2]}")`);
+    const [rows]: any = await pool.inst.query(`select user_id, gold, user_account from users where user_id in ("${roomInfo.roomUserIdList[0]}","${roomInfo.roomUserIdList[1]}","${roomInfo.roomUserIdList[2]}")`);
     rows.forEach(element => { roomInfo.roomUsers[element.user_id].gold = element.gold; });
 
     // 牌出完的玩家
@@ -295,8 +295,8 @@ export class webSocketPlayCardRouter {
       // 调用接口修改用户元宝
       const promiseList = [...successUserGold, ...loseUserGold].map(item => {
         return new Promise(async (resolve, reject) => {
-          console.log("修改用户元宝", `update user set gold = ? where user_id = ? `, [item.gold, item.user_id]);
-          let [rows]: any = await pool.inst.query(`update user set gold = ? where user_id = ? `, [item.gold, item.user_id]);
+          console.log("修改用户元宝", `update users set gold = ? where user_id = ? `, [item.gold, item.user_id]);
+          let [rows]: any = await pool.inst.query(`update users set gold = ? where user_id = ? `, [item.gold, item.user_id]);
 
           if (rows.affectedRows > 0) {
             resolve(true)

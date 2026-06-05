@@ -1,3 +1,7 @@
+/*
+ * @author: sharkgao
+ * @LastEditors: sharkgao
+ */
 import * as Koa from 'koa';
 import { v4 } from 'uuid'
 import { post, validateParams } from '../utils/decors';
@@ -21,7 +25,7 @@ export default class Login {
 
     try {
       // 查找账号是否已存在
-      const [rows] = await pool.inst.query(`select * from user where user_account = ? `, [userAccount])
+      const [rows] = await pool.inst.query(`select * from users where user_account = ? `, [userAccount])
       // @ts-ignore
       if (rows?.length > 0) {
         return ctx.body = {
@@ -29,17 +33,23 @@ export default class Login {
           error: '',
           message: '账号已存在'
         }
-      }
+      } 
 
       // 注册
       const idWithoutDashes = v4().replace(/-/g, '');
       const userName = `liang_${idWithoutDashes}`
-      await pool.inst.query(`insert into user (user_name, user_id, user_account, user_password, user_head_img, wx_openid) values (?,?,?,?,?,?)`, [userName, idWithoutDashes, userAccount, userPassword, userHeadImg, openId])
+      await pool.inst.query(`insert into users (user_name, user_id, user_account, user_password, user_head_img, wx_openid) values (?,?,?,?,?,?)`, [userName, idWithoutDashes, userAccount, userPassword, userHeadImg, openId])
       ctx.body = {
         code: 200,
         message: '注册成功'
       };
     } catch (error) {
+      console.error('[registerUser] err.message:', (error as any).message);
+      console.error('[registerUser] err.position:', (error as any).position);
+      console.error('[registerUser] err.where:', (error as any).where);
+      console.error('[registerUser] err.internalQuery:', (error as any).internalQuery);
+      console.error('[registerUser] full err:', error);
+    
       ctx.body = {
         code: 400,
         error: error,
@@ -56,7 +66,7 @@ export default class Login {
     if (validateRet) { return ctx.body = { code: 400, error: validateRet, message: '参数错误' } };
 
     try {
-      const [rows] = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from user where user_account = ? and user_password = ?`, [userAccount, userPassword])
+      const [rows] = await pool.inst.query(`select id, user_id, user_name, user_account, user_head_img, wx_openid, gold from users where user_account = ? and user_password = ?`, [userAccount, userPassword])
       // @ts-ignore
       if (rows.length > 0) {
         // 登录成功签名生成token
