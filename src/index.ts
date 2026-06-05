@@ -36,9 +36,10 @@ const router = loader(path.resolve(__dirname, './router'));
 // allowedMethods: 将路由挂载到 Koa 应用（接口）
 app.use(router.routes()).use(router.allowedMethods());
 
-// 这里我们监听在 3002 端口
-let server = app.listen(3002, () => {
-  console.log('server start');
+// 使用环境变量PORT（Render平台要求），如果没有则使用3002
+const PORT = process.env.PORT || 3002;
+let server = app.listen(PORT, () => {
+  console.log('server start on port', PORT);
 });
 
 // 创建 WebSocket 服务器并将其挂载到 HTTP 服务器上
