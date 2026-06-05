@@ -15,7 +15,7 @@ async function initializePostgreSQL() {
             throw new Error('DATABASE_URL环境变量未设置');
         }
 
-        console.log('正在连接PostgreSQL数据库...');
+        console.log('正在连接PostgreSQL数据库...', databaseUrl);
         const client = new Client({
             connectionString: databaseUrl,
             ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
