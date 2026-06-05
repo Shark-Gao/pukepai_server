@@ -6,8 +6,8 @@ import { create } from '../utils/token'
 import { v4 } from 'uuid'
 
 // 微信小游戏的appid和appsecret
-const GameAppID = "GameAppID";
-const GameAppSecret = "GameAppSecret";
+const GameAppID = "wx1fdfb7565f035409";
+const GameAppSecret = "54dba0a1ed2a3a9c8265dcb864c23cd5";
 
 // 微信
 export default class wxApi {
