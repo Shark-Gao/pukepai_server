@@ -3,7 +3,8 @@ import pool from '../../mysql';
 import * as cookie from 'cookie'; // 使用 cookie 库来解析 Cookie 字符串
 import { socketRoute } from './webSocketRouter';
 import { create, verify } from '../../utils/token';
-import { matchUserList, setMatchUserList } from './webSocketMatch';
+import { buildMatchKey, matchUserList } from './webSocketMatch';
+import { GameMode } from '../../gameMode/GameModeFactory';
 import { GameStatus, PlayerReadyStatus, RoomObj } from '../../utils/room';
 
 interface SocketData {
@@ -121,12 +122,20 @@ export default class WebSocketServer {
         function matchClose(code) {
           // 判断是不是匹配中掉线了, code 1000 为手动正常关闭
           if (url == "/matching" && code != 1000) { // 匹配ws连接
-            const userId = verify(parseData.params.token).decoded.user_id;
+            const params = parseData?.params;
+            if (!params?.token || params.level === undefined) return;
+
+            const userId = verify(params.token).decoded.user_id;
+            const gameMode = params.gameMode ?? GameMode.DOUDIZHU;
+            const queueKey = buildMatchKey(params.level, gameMode);
+            const queue = matchUserList[queueKey];
+            if (!queue) return;
+
             console.log("玩家匹配掉线", userId)
             // 删除匹配列表中匹配的玩家
-            setMatchUserList(parseData.params.level, matchUserList[parseData.params.level].filter((item, index) => {
+            matchUserList[queueKey] = queue.filter((item) => {
               return item.user_id != userId
-            }))
+            })
           }
         }
 

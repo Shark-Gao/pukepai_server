@@ -17,7 +17,7 @@ export default class wxApi {
     // 获取参数
     const { code, getRegister }: any = ctx.request.body || {};
 
-    console.log(code)
+    console.log("codeGetOpenId>>>>>", code)
 
     const validateRet = validateParams({ code });
     if (validateRet) { return ctx.body = { code: 400, error: validateRet, message: '参数错误' } };
@@ -25,11 +25,18 @@ export default class wxApi {
     try {
       // 调用微信 jscode2session 接口
       const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${GameAppID}&secret=${GameAppSecret}&js_code=${code}&grant_type=authorization_code`;
-      const response = await axios.get(url);
+      const response = await axios.get(url, { timeout: 10000 });
 
-      console.log(response.data)
+      console.log("codeGetOpenId>>>>>22 ", response.data)
 
-      const { openid, session_key } = response.data;
+      const { openid, session_key, errcode, errmsg } = response.data;
+      if (!openid) {
+        return ctx.body = {
+          code: 400,
+          error: response.data,
+          message: errmsg || `获取openid失败${errcode ? `(${errcode})` : ''}`
+        }
+      }
 
       let userRows;
       if (getRegister) {
@@ -62,12 +69,12 @@ export default class wxApi {
 
     // @ts-ignore
     if (rows.length > 0) {
-      wxApi.wxOpenIdLogin(ctx, openid, rows)
+      return await wxApi.wxOpenIdLogin(ctx, openid, rows)
     } else {
       // 微信注册账号
       const idWithoutDashes = v4().replace(/-/g, '');
       await pool.inst.query(`insert into users (user_name, user_id,  user_head_img, wx_openid) values (?,?,?,?)`, [wxUserInfo.nickName, idWithoutDashes, wxUserInfo.avatarUrl, openid]);
-      wxApi.wxOpenIdLogin(ctx, openid)
+      return await wxApi.wxOpenIdLogin(ctx, openid)
     }
   }
 
@@ -77,7 +84,7 @@ export default class wxApi {
    * @param openid 
    * @param userRows 传来查询的用户数据，不在进行查询
    */
-  public static async wxOpenIdLogin(ctx: Koa.Context, openid, userRows?) {
+  public static async wxOpenIdLogin(ctx: Koa.Context, openid: string, userRows?: any) {
     var rows: any = userRows
     if (!rows) {
       // 查询数据库，判断用户是否存在，不存在 则注册，存在则登录

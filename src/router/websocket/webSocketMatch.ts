@@ -15,7 +15,7 @@ import { SpecialRules } from '../../gameMode/IGameMode';
 export let matchUserList: { [key: string]: any[] } = {};
 
 /** Build the queue key for a given (level, gameMode). */
-function buildMatchKey(level: number | string, gameMode: number): string {
+export function buildMatchKey(level: number | string, gameMode: number): string {
   return `${level}_${gameMode}`;
 }
 
