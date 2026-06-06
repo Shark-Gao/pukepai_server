@@ -8,6 +8,7 @@ import { webSocketRoomBaseRouter } from './webSocketRoomBaseRouter';
 import { webSocketPlayCardRouter } from './webSocketPlayCardRouter';
 import { webSocketDealCardsRouter } from './webSocketDealCardsRouter';
 import { webSocketMatchRouter } from './webSocketMatch';
+import { webSocketShuangjianRouter } from './webSocketShuangjianRouter';
 
 // 类转换为对象
 function convertClassMethodsToObject<T>(cls: new (...args: any[]) => T): { [key: string]: (...args: any[]) => any } {
@@ -31,4 +32,5 @@ export const socketRoute = {
   ...convertClassMethodsToObject(webSocketPlayCardRouter), // 房间出牌路由处理
   ...convertClassMethodsToObject(webSocketDealCardsRouter), // 房间发牌路由处理
   ...convertClassMethodsToObject(webSocketMatchRouter), // 用户匹配逻辑
+  ...convertClassMethodsToObject(webSocketShuangjianRouter), // 双剑专用路由（包牌等）
 }

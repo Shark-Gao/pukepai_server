@@ -3,18 +3,25 @@ import { authSocketToken } from '../../utils/decors';
 import { RoomObj, GameStatus, CreateRoom, RoomType, userJoinRoom } from '../../utils/room';
 import { wsSend } from './webSocket'
 import User from '../user';
+import { gameModeFactory, GameMode } from '../../gameMode/GameModeFactory';
+import { SpecialRules } from '../../gameMode/IGameMode';
 
-// 匹配玩家列表
-export let matchUserList = {
-  // "level": [{...userInfo, ws: WebSocket}]
-  "1": [], // 和数据库对应
-  "2": [],
-  "3": [],
-  "4": []
+/**
+ * Match queues are partitioned by both level and gameMode so that Doudizhu
+ * (3 seats) and Shuangjian (4 seats) never share a queue.
+ *
+ * Key format: `${level}_${gameMode}`.
+ */
+export let matchUserList: { [key: string]: any[] } = {};
+
+/** Build the queue key for a given (level, gameMode). */
+function buildMatchKey(level: number | string, gameMode: number): string {
+  return `${level}_${gameMode}`;
 }
 
 export const setMatchUserList = (level, arr) => {
-  matchUserList[level] = arr;
+  // Backwards compatible setter (Doudizhu default).
+  matchUserList[buildMatchKey(level, GameMode.DOUDIZHU)] = arr;
 }
 
 // 匹配
@@ -23,109 +30,124 @@ export class webSocketMatchRouter {
   // 开启游戏匹配
   @authSocketToken()
   public async match({ ws, token, userInfo, params }: any) {
-    // console.log("matchUserList", params, matchUserList[params.level]);
     // 判断用户元宝是否充足
     let { status, message } = await User.GoldIsAdequate({
       userId: userInfo.user_id,
       level: params.level
     })
 
-    if (status) {
-      // 查询房间类型为匹配的房间，是否有空缺，有的话直接加入空缺房间
-      const matchingRoom = Object.keys(RoomObj).filter(roomId => {
-        const roomInfo = RoomObj[roomId];
-        console.log("roomInfo.room_type", roomInfo.room_type)
-        console.log("roomInfo.gameStatus", roomInfo.gameStatus)
-        console.log("roomInfo.roomUserIdList", roomInfo.roomUserIdList)
-        if (roomInfo.room_type === RoomType.MATCHING && roomInfo.gameStatus === GameStatus.NOSTART && roomInfo.roomUserIdList.some(id => !id)) {
-          return true
-        }
+    if (!status) {
+      wsSend(ws, { type: "match", code: 400, message });
+      return;
+    }
+
+    const gameMode: number = params.gameMode ?? GameMode.DOUDIZHU;
+    const specialRules: SpecialRules = params.specialRules || {};
+    const queueKey = buildMatchKey(params.level, gameMode);
+    if (!matchUserList[queueKey]) matchUserList[queueKey] = [];
+
+    // Required seat count for THIS match request.
+    const modeImpl = gameModeFactory.create(gameMode);
+    const requiredCount = modeImpl.getMaxPlayerCount();
+    const robotCount = Math.min(Math.max(Number(params.robotCount) || 0, 0), Math.max(requiredCount - 1, 0));
+    const robotLevel = params.robotLevel ?? 0;
+
+    if (robotCount > 0) {
+      const roomId = await CreateRoom({
+        userInfo: { ...userInfo, ws },
+        level: params.level,
+        roomType: RoomType.MATCHING,
+        gameMode,
+        specialRules,
+        robotCount,
+        robotLevel,
       });
+      console.log(`机器人匹配成功 mode=${gameMode} robots=${robotCount}`, userInfo.user_id);
+      wsSend(ws, {
+        type: 'match',
+        code: 200,
+        data: { roomId },
+        message: '匹配成功',
+      });
+      return;
+    }
 
-      console.log("matchingRoom", matchingRoom)
+    // 1) Try to join an existing matching room of the SAME mode/level with empty seats.
+    const matchingRoom = Object.keys(RoomObj).filter(roomId => {
+      const roomInfo = RoomObj[roomId];
+      const sameMode = (roomInfo.game_mode ?? GameMode.DOUDIZHU) === gameMode;
+      const sameLevel = roomInfo.level == params.level;
+      return roomInfo.room_type === RoomType.MATCHING
+        && roomInfo.gameStatus === GameStatus.NOSTART
+        && sameMode && sameLevel
+        && roomInfo.roomUserIdList.some(id => !id);
+    });
 
-      // 有已经存在的匹配房间的话，优先加入
-      if (matchingRoom.length > 0) {
-        const roomId = matchingRoom[0];
-        const roomInfo = RoomObj[roomId];
-        // 加入房间内
-        const { status, message } = userJoinRoom(userInfo, roomId);
-        if (status) {
-          // 通知该玩家匹配成功
-          wsSend(ws, {
-            type: 'match',
+    if (matchingRoom.length > 0) {
+      const roomId = matchingRoom[0];
+      const roomInfo = RoomObj[roomId];
+      const { status: joinStatus, message: joinMsg } = userJoinRoom(userInfo, roomId);
+      if (joinStatus) {
+        wsSend(ws, { type: 'match', code: 200, data: { roomId }, message: '匹配成功' });
+        // 通知房间内其他玩家
+        Object.keys(roomInfo.roomUsers).filter(id => id != userInfo.user_id).forEach((userId) => {
+          const roomUserInfo = roomInfo.roomUsers[userId];
+          wsSend(roomUserInfo.ws, {
+            type: "userJoinRoomUpdate",
             code: 200,
             data: {
-              roomId,
+              ...roomInfo,
+              roomUsers: clientReturnRoomUsers(roomInfo.roomUsers, userId)
             },
-            message: '匹配成功',
-          });
-          // 通知房间内其他玩家，有玩家加入房间
-          Object.keys(roomInfo.roomUsers).filter(id => id != userInfo.user_id).forEach((userId) => {
-            const roomUserInfo = roomInfo.roomUsers[userId];
-            wsSend(roomUserInfo.ws, {
-              type: "userJoinRoomUpdate",
-              code: 200,
-              data: {
-                ...roomInfo,
-                roomUsers: clientReturnRoomUsers(roomInfo.roomUsers, userId)
-              }, // 返回用户信息
-              message: '加入房间成功'
-            })
+            message: '加入房间成功'
           })
-        } else {
-          wsSend(ws, {
-            type: 'match',
-            code: 400,
-            message: message,
-          });
-        }
-      } else {
-        // 加入到匹配数组中
-        matchUserList[params.level].push({
-          ...userInfo,
-          ws,
         });
+      } else {
+        wsSend(ws, { type: 'match', code: 400, message: joinMsg });
+      }
+      return;
+    }
 
-        // 匹配玩家
-        if (matchUserList[params.level].length >= 3) {
-          const roomId = await CreateRoom({ userInfo, level: params.level, roomType: RoomType.MATCHING });
+    // 2) Otherwise enqueue & try to form a fresh room.
+    matchUserList[queueKey].push({ ...userInfo, ws });
 
-          // 删除匹配列表中已匹配的玩家
-          let matchUser = matchUserList[params.level].splice(0, 3);
-          console.log("匹配成功", matchUser)
-          matchUser.forEach(async (userInfo) => {
-            // 加入房间内
-            userJoinRoom(userInfo, roomId);
+    if (matchUserList[queueKey].length >= requiredCount) {
+      const matchUser = matchUserList[queueKey].splice(0, requiredCount);
+      const roomId = await CreateRoom({
+        userInfo: matchUser[0],
+        level: params.level,
+        roomType: RoomType.MATCHING,
+        gameMode,
+        specialRules,
+      });
+      console.log(`匹配成功 mode=${gameMode} required=${requiredCount}`, matchUser.map(u => u.user_id));
 
-            // 通知客户端，匹配成功，需要客户端调用加入房间websocket接口
-            wsSend(userInfo.ws, {
-              type: 'match',
-              code: 200,
-              data: {
-                roomId,
-              },
-              message: '匹配成功',
-            });
-          });
-        } else {
-          wsSend(ws, { type: 'match', code: 200, message: '匹配中' });
+      // The room owner is already in the room via CreateRoom; bring the rest in.
+      for (let i = 0; i < matchUser.length; i++) {
+        const u = matchUser[i];
+        if (i > 0) {
+          userJoinRoom(u, roomId);
         }
+        wsSend(u.ws, {
+          type: 'match',
+          code: 200,
+          data: { roomId },
+          message: '匹配成功',
+        });
       }
     } else {
-      wsSend(ws, {
-        type: "match",
-        code: 400,
-        message: message
-      })
+      wsSend(ws, { type: 'match', code: 200, message: '匹配中' });
     }
   }
 
   // 退出匹配
   @authSocketToken()
   public cancelMatch({ ws, token, userInfo, params }: any) {
-    if (matchUserList[params.level]) {
-      matchUserList[params.level] = matchUserList[params.level].filter((item) => userInfo.user_id !== item.user_id);
+    const gameMode: number = params.gameMode ?? GameMode.DOUDIZHU;
+    const queueKey = buildMatchKey(params.level, gameMode);
+
+    if (matchUserList[queueKey]) {
+      matchUserList[queueKey] = matchUserList[queueKey].filter((item) => userInfo.user_id !== item.user_id);
     }
 
     wsSend(ws, {

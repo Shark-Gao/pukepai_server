@@ -188,7 +188,7 @@ export default class User {
   // 创建房间
   @post("/createRoom")
   public static async createRoom(ctx: Koa.Context) {
-    const { userInfo, level } = ctx.request.body || {};
+    const { userInfo, level, gameMode = 0, specialRules = {}, robotCount = 0, robotLevel = 0 } = ctx.request.body || {};
 
     // 判断用户元宝是否充足
     let { status, message } = await User.GoldIsAdequate({
@@ -198,8 +198,15 @@ export default class User {
 
     if (status) {
       // 创建房间，存到内存中，不写入数据库
-      const roomId = await CreateRoom({ userInfo, level: level })
-      console.log("createRoomInfo", roomId)
+      const roomId = await CreateRoom({
+        userInfo,
+        level: level,
+        gameMode,        // 0=Doudizhu, 1=Shuangjian
+        specialRules,    // Shuangjian only; ignored by Doudizhu
+        robotCount,
+        robotLevel,
+      })
+      console.log("createRoomInfo", roomId, "mode:", gameMode)
 
       ctx.body = {
         code: 200,
@@ -218,11 +225,22 @@ export default class User {
   // 获取战绩
   @post("/getRecord")
   public static async getRecord(ctx: Koa.Context) {
-    const { userInfo } = ctx.request.body || {};
-    console.log("getRecord", userInfo)
+    const { userInfo, gameMode = 0 } = ctx.request.body || {};
+    console.log("getRecord", userInfo, "mode:", gameMode)
 
     try {
-      const [rows] = await pool.inst.query(`select * from game_record where user_1_id = ? or user_2_id = ? or user_3_id = ? order by end_time DESC`, [userInfo.user_id, userInfo.user_id, userInfo.user_id])
+      if (gameMode === 1) {
+        // Shuangjian — separate table, 4 user-id columns.
+        const { getShuangjianRecordsByUser } = require('../mysql/shuangjianRecord');
+        const rows = await getShuangjianRecordsByUser(userInfo.user_id);
+        ctx.body = { code: 200, data: rows };
+        return;
+      }
+
+      const [rows] = await pool.inst.query(
+        `select * from game_record where user_1_id = ? or user_2_id = ? or user_3_id = ? order by end_time DESC`,
+        [userInfo.user_id, userInfo.user_id, userInfo.user_id]
+      )
       // @ts-ignore
       ctx.body = {
         code: 200,

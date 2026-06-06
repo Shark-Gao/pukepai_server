@@ -133,8 +133,9 @@ export const patch = method('patch');
 // 动态加载所有的路由装饰器，注册路由
 export const loader = (folder: string, options: loadOptions = {}): KoaRouter => {
   const extname = options?.extname || '.{js,ts}';
+  const normalizedFolder = folder.replace(/\\/g, '/');
   // glog递归去获取文件
-  const files = glog.sync(`${folder}/**/*${extname}`);
+  const files = glog.sync(`${normalizedFolder}/**/*${extname}`);
   files.forEach(file => require(file));
 
   return router;

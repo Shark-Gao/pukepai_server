@@ -1,15 +1,15 @@
-
 import { authSocketToken } from '../../utils/decors';
 import { RoomObj, GameStatus } from '../../utils/room';
 import { wsSend, socketUpdateRoomRate } from './webSocket'
 import { getRandomNumber, clientReturnRoomUsers, sortPokerCards } from '../../utils/tools';
 import { webSocketPlayCardRouter } from './webSocketPlayCardRouter';
+import { getDoudizhuAiStrategy } from '../../ai/doudizhuAi';
 
 // 创建卡牌
-function createCard(cards?, num = 1, userCards = [[], [], [], []]) {
+function createCard(cards?: number[], num = 1, userCards: number[][] = [[], [], [], []]) {
   if (!cards) {
     // 所有卡片
-    cards = new Array(54).fill("").map((item, index) => index + 1);
+    cards = new Array(54).fill(0).map((item, index) => index + 1);
     // 随机打乱
     for (let i = 0; i < cards.length; i++) {
       const randomIndex = Math.floor(Math.random() * cards.length);
@@ -36,6 +36,79 @@ function createCard(cards?, num = 1, userCards = [[], [], [], []]) {
 
 // 发牌逻辑 (包括发牌，抢地主，明牌，加倍等功能)
 export class webSocketDealCardsRouter {
+
+  private static getLandlordAiDecision(roomInfo: any, userId: string): boolean {
+    const strategy = getDoudizhuAiStrategy(roomInfo?.robot_level);
+    return strategy.shouldSelectLandlord(roomInfo?.roomUsers?.[userId]?.user_card || [], roomInfo, userId);
+  }
+
+  private static autoSelectLandlord(roomId: string, snatchLandlordUserId: string) {
+    const roomInfo = RoomObj[roomId];
+    const roomUsers = roomInfo?.roomUsers;
+    if (!roomUsers) {
+      return;
+    }
+
+    const selectLandlord = this.getLandlordAiDecision(roomInfo, snatchLandlordUserId);
+    if (selectLandlord) {
+      roomUsers[snatchLandlordUserId].snatch_landlord_num += 1;
+      if (roomInfo.snatch_landlord_record.some(item => item.isSnatchLandlord == true)) {
+        roomInfo.room_rate *= 2;
+        socketUpdateRoomRate(roomId);
+        console.log("AI抢地主倍率*2", roomInfo.room_rate);
+      }
+    }
+
+    roomInfo.snatch_landlord_record.push({
+      userId: snatchLandlordUserId,
+      isSnatchLandlord: selectLandlord,
+    });
+
+    // 通知客户端，机器人抢地主结果
+    roomInfo.roomUserIdList.forEach(itemUserId => {
+      const ItemUserInfo = roomUsers[itemUserId];
+      wsSend(ItemUserInfo.ws, {
+        type: "selectLandlord",
+        code: 200,
+        data: {
+          userId: snatchLandlordUserId, // 抢地主用户
+          selectLandlord, // 用户抢地主的选择
+        },
+        message: '成功'
+      });
+    })
+
+    this.judgeLandlordUser(roomId, snatchLandlordUserId);
+  }
+
+  private static autoPassLandlord(roomId: string, snatchLandlordUserId: string) {
+    const roomInfo = RoomObj[roomId];
+    const roomUsers = roomInfo?.roomUsers;
+    if (!roomUsers) {
+      return;
+    }
+
+    roomInfo.snatch_landlord_record.push({
+      userId: snatchLandlordUserId,
+      isSnatchLandlord: false,
+    });
+
+    // 通知客户端，玩家抢地主结果（自动不抢）
+    roomInfo.roomUserIdList.forEach(itemUserId => {
+      const ItemUserInfo = roomUsers[itemUserId];
+      wsSend(ItemUserInfo.ws, {
+        type: "selectLandlord",
+        code: 200,
+        data: {
+          userId: snatchLandlordUserId, // 抢地主用户
+          selectLandlord: false, // 用户抢地主的选择
+        },
+        message: '成功'
+      });
+    })
+
+    this.judgeLandlordUser(roomId, snatchLandlordUserId);
+  }
 
   /**
   * 重新开始游戏
@@ -136,6 +209,12 @@ export class webSocketDealCardsRouter {
 
     // 设置当前抢地主玩家ID
     roomInfo.current_snatch_landlord_user = snatchLandlordUserId;
+
+    if (roomInfo.roomUsers[snatchLandlordUserId]?.is_hosted) {
+      this.autoSelectLandlord(roomId, snatchLandlordUserId);
+      return;
+    }
+
     // 用户抢地主倒计时时间
     roomInfo.snatch_landlord_countDown = roomInfo.snatch_landlord_time;
     // 默认调用一次
@@ -176,28 +255,7 @@ export class webSocketDealCardsRouter {
     // 用户抢地主时间结束
     if (roomInfo.snatch_landlord_countDown <= 0) {
       clearInterval(roomInfo.count_down_timer);
-      // 每个用户的抢地主记录进去
-      roomInfo.snatch_landlord_record.push({
-        userId: snatchLandlordUserId,
-        isSnatchLandlord: false,
-      });
-
-      // 通知客户端，玩家抢地主结果（这里是倒计时结束自动不抢）
-      roomInfo.roomUserIdList.forEach(itemUserId => {
-        const ItemUserInfo = roomInfo.roomUsers[itemUserId];
-        wsSend(ItemUserInfo.ws, {
-          type: "selectLandlord",
-          code: 200,
-          data: {
-            userId: snatchLandlordUserId, // 抢地主用户
-            selectLandlord: false, // 用户抢地主的选择
-          },
-          message: '成功'
-        });
-      })
-
-      // 判断抢地主逻辑
-      this.judgeLandlordUser(roomId, snatchLandlordUserId);
+      this.autoPassLandlord(roomId, snatchLandlordUserId);
       return;
     }
 
@@ -480,8 +538,11 @@ export class webSocketDealCardsRouter {
   })
   public async mingPai({ ws, token, userInfo, params }: any) {
     const roomInfo = RoomObj[params.roomId];
-    const roomUserKeys = Object.keys(roomInfo.roomUsers);
-    roomInfo.roomUsers[userInfo.user_id].mingpai = true;
+    const roomUsers = roomInfo.roomUsers as Record<string, any>;
+    const roomUserKeys = Object.keys(roomUsers);
+    roomUserKeys.forEach(itemUserId => {
+      roomUsers[itemUserId].mingpai = true;
+    });
     // 房间倍率*2
     roomInfo.room_rate *= 2;
     // 通知客户端更新房间倍率
@@ -489,21 +550,19 @@ export class webSocketDealCardsRouter {
 
     console.log("明牌倍率*2", roomInfo.room_rate);
 
-    // 通知所以用户我名牌了
+    // 通知所有用户明牌了
     roomUserKeys.forEach(itemUserId => {
-      // 设置用户信息返回给客户端（当前登录用户看不到其他用户的牌，需要根据是否明牌进行判断）
-      const newRoomUsers = clientReturnRoomUsers({
-        [userInfo.user_id]: roomInfo.roomUsers[userInfo.user_id]
-      }, itemUserId);
+      // 明牌后所有玩家都可以看到全员真实手牌
+      const newRoomUsers = clientReturnRoomUsers(roomUsers, itemUserId, false);
 
       // 获取用户信息
-      const ItemUserInfo = roomInfo.roomUsers[itemUserId]
+      const ItemUserInfo = roomUsers[itemUserId]
       wsSend(ItemUserInfo.ws, {
         type: "mingPai",
         code: 200,
         data: {
           userId: userInfo.user_id, // 明牌用户
-          roomUser: newRoomUsers, // 明牌，roomUser只包含当前明牌玩家的信息
+          roomUsers: newRoomUsers, // 明牌后返回所有玩家的信息
         },
         message: '成功'
       });

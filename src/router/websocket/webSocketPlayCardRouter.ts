@@ -1,11 +1,12 @@
-
 import { authSocketToken } from '../../utils/decors';
 import { RoomObj, GameStatus, PlayerReadyStatus } from '../../utils/room';
 import { socketUpdateRoomRate, wsSend } from './webSocket'
 import CardLogic, { getPoint } from '../../cardLogic/cardLogic';
-import cardHint from '../../cardLogic/cardHint';
 import pool from '../../mysql'
 import { clientReturnRoomUsers } from '../../utils/tools';
+import { GameMode } from '../../gameMode/IGameMode';
+import { handleShuangjianUserPlayCard } from './webSocketShuangjianPlayCard';
+import { getDoudizhuAiStrategy } from '../../ai/doudizhuAi';
 
 // 游戏结束状态
 enum VictoryStatus {
@@ -15,7 +16,6 @@ enum VictoryStatus {
 }
 
 // console.log("判断类型", CardLogic.judgeCardType([27, 40, 26, 52, 12, 38, 11, 24]));
-// console.log("提示卡牌", cardHint.cardHint([9, 9, 9, 10, 10], [14, 27, 40, 7, 8, 21]))
 
 // 斗地主打牌逻辑
 export class webSocketPlayCardRouter {
@@ -105,14 +105,17 @@ export class webSocketPlayCardRouter {
     // 查询最近一条的出牌记录
     const lastRecord = this.getLastRecord(roomId);
 
-    // 获取机器人需要出的牌，可以出的牌集合,最后一次出牌是我的话，证明没人管上我的牌
-    const playCards = cardHint.cardHint(!lastRecord?.userId || lastRecord?.userId == userId ? [] : lastRecord.playCard, roomUserInfo.user_card);
-    // 出牌内容
-    let playCard = [];
-    // 可以管上
-    if (playCards.length > 0) {
-      // 靠前的组合牌大，优先出牌小能管上的牌
-      playCard = playCards[playCards.length - 1];
+    const isFreePlay = !lastRecord?.userId || lastRecord?.userId == userId;
+    const aiStrategy = getDoudizhuAiStrategy(roomInfo.robot_level);
+    const playCard = aiStrategy.choosePlayCards({
+      roomInfo,
+      userId,
+      handCards: roomUserInfo.user_card,
+      lastRecord,
+      isFreePlay,
+    });
+
+    if (playCard.length > 0) {
       // 玩家扑克牌中删除牌
       roomUserInfo.user_card = roomUserInfo.user_card.filter(item => !playCard.includes(item));
 
@@ -422,6 +425,14 @@ export class webSocketPlayCardRouter {
   })
   public async userPlayCard({ ws, token, userInfo, params }: any) {
     const roomInfo = RoomObj[params.roomId];
+    // ===== Shuangjian dispatch =====
+    // Twin-Sword rooms have completely different validation, turn rotation
+    // and settlement logic; delegate to the dedicated handler so that the
+    // Doudizhu codepath stays untouched.
+    if (roomInfo && (roomInfo.game_mode ?? GameMode.DOUDIZHU) === GameMode.SHUANGJIAN) {
+      await handleShuangjianUserPlayCard({ ws, token, userInfo, params });
+      return;
+    }
     const roomUserIdList = roomInfo.roomUserIdList;
     const roomUserInfo = roomInfo.roomUsers[userInfo.user_id];
 

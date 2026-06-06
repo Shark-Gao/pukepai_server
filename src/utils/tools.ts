@@ -23,7 +23,7 @@ export const generateRoomId = (roomObj: any) => {
 }
 
 // 生成随机数
-export const getRandomNumber = (min, max) => {
+export const getRandomNumber = (min: number, max: number) => {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
@@ -34,8 +34,8 @@ export const getRandomNumber = (min, max) => {
  * @param include 是否筛选包含的属性
  * @returns 
  */
-export const ObjectPropFilter = (obj, propList, include = true) => {
-  const newObj = {};
+export const ObjectPropFilter = (obj: Record<string, any>, propList: string[], include = true) => {
+  const newObj: Record<string, any> = {};
   for (const key in obj) {
     if (include && propList.includes(key)) {
       newObj[key] = obj[key];
@@ -48,8 +48,8 @@ export const ObjectPropFilter = (obj, propList, include = true) => {
 
 
 // 获取房间用户某些属性
-export const getRoomUserProp = (roomUsers: any, getPropList: Array<String>, include = true) => {
-  let newRoomUsers = {};
+export const getRoomUserProp = (roomUsers: Record<string, any>, getPropList: string[], include = true) => {
+  let newRoomUsers: Record<string, any> = {};
   Object.keys(roomUsers).forEach(userId => {
     newRoomUsers[userId] = ObjectPropFilter(roomUsers[userId], getPropList, include)
   });
@@ -64,9 +64,9 @@ export const getRoomUserProp = (roomUsers: any, getPropList: Array<String>, incl
  * @param judgeUserId false 不校验用户id true 校验用户id
  * @returns 
  */
-export const clientReturnRoomUsers = (roomUsers, currUserId, judgeUserId = true) => {
+export const clientReturnRoomUsers = (roomUsers: Record<string, any>, currUserId: string | number, judgeUserId = true) => {
   // 设置用户信息，卡牌信息，返回给客户端（当前登录用户看不到其他用户的牌）
-  const newRoomUsers = {};
+  const newRoomUsers: Record<string, any> = {};
   Object.keys(roomUsers).forEach(userId => {
     const roomUserInfo = roomUsers[userId];
 
@@ -87,8 +87,8 @@ export const rankOrder = [2, 1, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3];
 export const jokerOrder = [54, 53];
 
 // 扑克牌排序
-export const sortPokerCards = (cards) => {
-  return cards.sort((a, b) => {
+export const sortPokerCards = (cards: number[]) => {
+  return cards.sort((a: number, b: number) => {
     // 若 a 是大小王
     if (a === 53 || a === 54) {
       // 若 b 也是大小王，按大小王顺序排序
@@ -126,16 +126,16 @@ export const sortPokerCards = (cards) => {
  * @param cards 传入 getPoint 返回的卡牌数组
  * @returns 
  */
-export const _countCards = (cards) => {
-  const countMap = {};
-  cards.forEach(card => {
+export const _countCards = (cards: Array<{ cardSize: number }>) => {
+  const countMap: Record<string, number> = {};
+  cards.forEach((card: { cardSize: number }) => {
     countMap[card.cardSize] = (countMap[card.cardSize] || 0) + 1;
   });
   return countMap;
 }
 
 // 辅助方法：获取飞机牌型中的主体三连牌部分
-export const _getPlaneTriples = (cards) => {
+export const _getPlaneTriples = (cards: Array<{ cardSize: number }>) => {
   const countMap = _countCards(cards);
 
   // 提取所有至少有三张的牌
@@ -149,9 +149,9 @@ export const _getPlaneTriples = (cards) => {
 }
 
 // 辅助方法：查找最长的连续三张牌组
-export const _findMaxConsecutiveTriples = (triples) => {
+export const _findMaxConsecutiveTriples = (triples: number[]) => {
   let maxLength = 0;
-  let maxGroup = [];
+  let maxGroup: number[] = [];
 
   for (let i = 0; i < triples.length; i++) {
     for (let j = i; j < triples.length; j++) {
@@ -175,7 +175,7 @@ export const _findMaxConsecutiveTriples = (triples) => {
 }
 
 // 辅助方法：验证是否为纯飞机（不带牌）
-export const _validatePlaneWithout = (countMap, triples) => {
+export const _validatePlaneWithout = (countMap: Record<string, number>, triples: number[]) => {
   // 所有牌必须恰好是三组连续的牌，没有剩余
   for (const card of triples) {
     if (countMap[card] !== 3) {
@@ -189,7 +189,7 @@ export const _validatePlaneWithout = (countMap, triples) => {
 }
 
 // 辅助方法：验证是否为飞机三带一
-export const _validatePlaneWithSingle = (countMap, triples) => {
+export const _validatePlaneWithSingle = (countMap: Record<string, number>, triples: number[]) => {
   const usedCards = { ...countMap };
   const groupCount = triples.length;
 
@@ -212,7 +212,7 @@ export const _validatePlaneWithSingle = (countMap, triples) => {
 }
 
 // 辅助方法：验证是否为飞机三带二
-export const _validatePlaneWithPair = (countMap, triples) => {
+export const _validatePlaneWithPair = (countMap: Record<string, number>, triples: number[]) => {
   const usedCards = { ...countMap };
   const groupCount = triples.length;
 
@@ -235,7 +235,7 @@ export const _validatePlaneWithPair = (countMap, triples) => {
 }
 
 // 时间戳转日期
-export function timestampToDate(timestamp) {
+export function timestampToDate(timestamp: number | string | Date) {
   // 时间戳通常是毫秒级，若为秒级需乘以1000
   const date = new Date(timestamp);
 

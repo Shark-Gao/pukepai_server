@@ -19,7 +19,8 @@ export default class Login {
   @post('/registerUser')
   public static async registerUser(ctx: Koa.Context) {
     const { userAccount, userPassword, userHeadImg = "/Image/default_head.png", openId = "" } = ctx.request.body || {};
-
+    console.log('[registerUser] userAccount:', userAccount);
+    console.log('[registerUser] userPassword:', userPassword);
     const validateRet = validateParams({ userAccount, userPassword });
     if (validateRet) { return ctx.body = { code: 400, error: validateRet, message: '参数错误' } };
 
@@ -63,6 +64,7 @@ export default class Login {
   public static async login(ctx: Koa.Context) {
     const { userAccount, userPassword } = ctx.request.body || {};
     const validateRet = validateParams({ userAccount, userPassword });
+    console.log('[login] validateRet:', validateRet);
     if (validateRet) { return ctx.body = { code: 400, error: validateRet, message: '参数错误' } };
 
     try {

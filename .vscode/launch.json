@@ -1,0 +1,129 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Server: Debug (推荐 - JS入口中转)",
+            "runtimeExecutable": "node",
+            "runtimeArgs": [
+                "--nolazy",
+                "-r",
+                "ts-node/register",
+                "-r",
+                "tsconfig-paths/register"
+            ],
+            "program": "${workspaceFolder}/.vscode/debug-entry.js",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "NODE_ENV": "development",
+                "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json",
+                "TS_NODE_TRANSPILE_ONLY": "true",
+                "TS_NODE_FILES": "true",
+                "TS_NODE_PRETTY": "true",
+                "TS_NODE_COMPILER_OPTIONS": "{\"sourceMap\":true,\"inlineSourceMap\":true,\"inlineSources\":true}"
+            },
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/**/*.js",
+                "!${workspaceFolder}/node_modules/**"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**",
+                "**/node_modules/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Server: Debug (ts-node 直接入口)",
+            "runtimeExecutable": "node",
+            "runtimeArgs": [
+                "--nolazy",
+                "-r",
+                "ts-node/register",
+                "-r",
+                "tsconfig-paths/register"
+            ],
+            "args": [
+                "${workspaceFolder}/src/index.ts"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "NODE_ENV": "development",
+                "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json",
+                "TS_NODE_TRANSPILE_ONLY": "true",
+                "TS_NODE_FILES": "true",
+                "TS_NODE_PRETTY": "true",
+                "TS_NODE_COMPILER_OPTIONS": "{\"sourceMap\":true,\"inlineSourceMap\":true,\"inlineSources\":true}"
+            },
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/**/*.js",
+                "!${workspaceFolder}/node_modules/**"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**",
+                "**/node_modules/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Server: Debug (ts-node-dev 热重启)",
+            "runtimeExecutable": "node",
+            "runtimeArgs": [
+                "--nolazy",
+                "${workspaceFolder}/node_modules/ts-node-dev/lib/bin.js",
+                "--inspect=9229",
+                "--respawn",
+                "--transpile-only",
+                "--files",
+                "-r",
+                "tsconfig-paths/register",
+                "-p",
+                "tsconfig.json",
+                "${workspaceFolder}/src/index.ts"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "sourceMaps": true,
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "autoAttachChildProcesses": true,
+            "restart": true,
+            "skipFiles": [
+                "<node_internals>/**",
+                "**/node_modules/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "attach",
+            "name": "Server: Attach to port 9229",
+            "port": 9229,
+            "restart": true,
+            "sourceMaps": true,
+            "localRoot": "${workspaceFolder}",
+            "remoteRoot": "${workspaceFolder}",
+            "skipFiles": [
+                "<node_internals>/**",
+                "**/node_modules/**"
+            ]
+        }
+    ]
+}

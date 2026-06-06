@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
+    "rootDir": "./src",
     "outDir": "./puke_server", // 编译输出目录
     "target": "es2017", // 编译之后的js语法等级      
+    "sourceMap": true, // 生成 sourceMap，VSCode 调试 ts-node-dev 时断点必需
     "experimentalDecorators": true, // 开启装饰器，可以使用装饰器
     "module": "CommonJS", // 编译成 JavaScript 后，模块导入和导出的方式
     "forceConsistentCasingInFileNames": true, // 选项用于确保代码中使用的模块文件名与文件系统中的文件名大小写保持一致
@@ -19,6 +21,7 @@
       // "./src/types/custom_types.d.ts"
     ], // 自定单个类型库
     "baseUrl": ".",
+    "ignoreDeprecations": "5.0",
     "moduleResolution": "node",
     "paths": {
       "@/*": [

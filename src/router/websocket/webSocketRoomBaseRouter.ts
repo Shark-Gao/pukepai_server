@@ -1,4 +1,3 @@
-
 import { authSocketToken } from '../../utils/decors';
 import { RoomObj, CreateRoom, PlayerReadyStatus, GameStatus } from '../../utils/room';
 import { wsSend } from './webSocket'
@@ -7,6 +6,20 @@ import { webSocketDealCardsRouter } from './webSocketDealCardsRouter'
 
 // 房间基础路由（创建房间、获取房间信息、加入房间、准备、退出房间）
 export class webSocketRoomBaseRouter {
+
+  private static dismissRoomIfOnlyHostedUsers(roomId: string, ignoreUserId: string = ''): boolean {
+    const roomInfo = RoomObj[roomId];
+    const roomUsers = roomInfo?.roomUsers;
+    const roomUserIds = Object.keys(roomUsers || {}).filter(userId => userId != ignoreUserId);
+
+    if (roomUsers && roomUserIds.length > 0 && roomUserIds.every(userId => roomUsers[userId].is_hosted)) {
+      clearInterval(roomInfo.count_down_timer);
+      delete RoomObj[roomId];
+      return true;
+    }
+
+    return false;
+  }
 
   // 获取房间信息
   @authSocketToken({
@@ -78,10 +91,20 @@ export class webSocketRoomBaseRouter {
 
 
     const roomUsers = Object.values(roomInfo.roomUsers);
-    // 判断游戏未开始 & 房间3个用户 & 全部用户都准备了 （发牌）
-    if (roomInfo['gameStatus'] == GameStatus.NOSTART && roomUsers.length == 3 && roomUsers.every(value => value.ready == PlayerReadyStatus.READY)) {
-      // 所有用户都准备了，开始发牌
-      webSocketDealCardsRouter.dealCards({ ws, token, userInfo, params });
+    // Player count required by the current game mode (3 for Doudizhu, 4 / 2 for Shuangjian).
+    const requiredCount = roomInfo.gameModeImpl
+      ? roomInfo.gameModeImpl.getMinPlayerCount()
+      : 3;
+    // 判断游戏未开始 & 房间满员 & 全部用户都准备了 （发牌）
+    if (roomInfo['gameStatus'] == GameStatus.NOSTART
+      && roomUsers.length == requiredCount
+      && roomUsers.every(value => value.ready == PlayerReadyStatus.READY)) {
+      // 所有用户都准备了，由对应模式实现发牌
+      if (roomInfo.gameModeImpl) {
+        roomInfo.gameModeImpl.dealCards(roomInfo);
+      } else {
+        webSocketDealCardsRouter.dealCards({ ws, token, userInfo, params });
+      }
     }
   }
 
@@ -104,6 +127,7 @@ export class webSocketRoomBaseRouter {
       });
       // 删除掉该用户的websocket
       roomInfo.roomUsers[userInfo.user_id].ws = null;
+      webSocketRoomBaseRouter.dismissRoomIfOnlyHostedUsers(params.roomId, userInfo.user_id);
     } else {
       // 删除该用户
       delete roomInfo.roomUsers[userInfo.user_id];
@@ -112,13 +136,6 @@ export class webSocketRoomBaseRouter {
       roomInfo.roomUserIdList[index] = "";
       // 获取删除后，房间所有用户id
       const roomUserIds = Object.keys(roomInfo.roomUsers);
-      // 判断用户退出后房间是否还有人，没有删除房间
-      if (roomUserIds.length == 0) {
-        // 删除房间
-        delete RoomObj[params.roomId];
-      } else if (userInfo.user_id == roomInfo.room_owner_id) { // 退出的是房主，将第一个用户设置为房主
-        roomInfo.room_owner_id = roomUserIds[0];
-      }
 
       // 给退出房间用户发送退出成功
       wsSend(ws, {
@@ -129,6 +146,17 @@ export class webSocketRoomBaseRouter {
         },
         message: '成功'
       });
+
+      // 判断用户退出后房间是否还有人，没有删除房间
+      if (roomUserIds.length == 0) {
+        // 删除房间
+        delete RoomObj[params.roomId];
+        return;
+      } else if (webSocketRoomBaseRouter.dismissRoomIfOnlyHostedUsers(params.roomId)) {
+        return;
+      } else if (userInfo.user_id == roomInfo.room_owner_id) { // 退出的是房主，将第一个用户设置为房主
+        roomInfo.room_owner_id = roomUserIds[0];
+      }
 
       // 通知其他用户有人退出房间
       roomUserIds.forEach((value, index) => {
