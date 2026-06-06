@@ -152,8 +152,21 @@ function pushTurnToUser(roomId: string, userId: string): void {
         if (roomInfo.play_card_countDown <= 0) {
             clearInterval(roomInfo.count_down_timer);
             roomInfo.count_down_timer = null;
-            // Timeout / hosted turn: free play must play at least one card; pressing can pass only when no card can beat.
-            robotPlayAndAdvance(roomId, userId);
+            // Timeout: real players pass the first time, then enter hosted mode on the second consecutive timeout.
+            if (roomUsers[userId]?.is_hosted) {
+                robotPlayAndAdvance(roomId, userId);
+                return;
+            }
+
+            roomInfo.play_card_timeout_record = roomInfo.play_card_timeout_record || {};
+            roomInfo.play_card_timeout_record[userId] = (roomInfo.play_card_timeout_record[userId] || 0) + 1;
+            if (roomInfo.play_card_timeout_record[userId] >= 2) {
+                roomUsers[userId].is_hosted = true;
+                robotPlayAndAdvance(roomId, userId);
+                return;
+            }
+
+            recordPassAndAdvance(roomId, userId);
             return;
         }
         roomInfo.play_card_countDown -= 1;
@@ -356,6 +369,9 @@ export async function handleShuangjianUserPlayCard(
     }
 
     const playCards: number[] = Array.isArray(params.playCards) ? params.playCards.slice() : [];
+    if (roomInfo.play_card_timeout_record) {
+        roomInfo.play_card_timeout_record[userInfo.user_id] = 0;
+    }
 
     // ----- Pass -----
     if (playCards.length === 0) {
@@ -476,6 +492,7 @@ export async function handleShuangjianUserPlayCard(
         roomInfo.landlord_camp = [];
         roomInfo.farmer_camp = [];
         roomInfo.pass_user_record = [];
+        roomInfo.play_card_timeout_record = {};
         roomInfo.is_baopai = false;
         for (const uid of userIds) {
             const u = roomUsers[uid];

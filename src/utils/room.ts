@@ -102,6 +102,7 @@ abstract class GameRoomStatus {
   abstract double_countDown: number; // 用户选择加倍剩余时间(-1 未选择过加倍 0 所有用户都选择过加倍了)
   abstract count_down_timer: any; // 用户计时器（抢地主、出牌、加倍）
   abstract play_card_record: Array<playCardRecord>; // 玩家出牌记录
+  abstract play_card_timeout_record: { [userId: string]: number }; // 连续出牌超时记录
   abstract current_play_card_user: string; // 当前出牌玩家id
 }
 
@@ -151,6 +152,7 @@ class Room extends GameRoomStatus { // 实现抽象属性
   double_countDown: number = -1; // 用户选择加倍剩余时间(-1 未选择过加倍)
   count_down_timer: any = null; // 计时器
   play_card_record: Array<playCardRecord> = []; // 玩家出牌记录
+  play_card_timeout_record: { [userId: string]: number } = {}; // 连续出牌超时记录
   current_play_card_user: string = ""; // 当前出牌用户id
   room_type: RoomType | null = null; // 房间类型 玩家创建 和 系统匹配
   robot_level: RobotLevel = RobotLevel.Simple; // AI difficulty level

@@ -60,7 +60,7 @@ export class webSocketPlayCardRouter {
     }, null);
   }
 
-  // 出牌计时器逻辑
+    // 出牌计时器逻辑
   private static async playeCardInterval(roomId, userId) {
     const roomInfo = RoomObj[roomId];
 
@@ -85,17 +85,60 @@ export class webSocketPlayCardRouter {
       })
     })
 
-    // 倒计时结束用户没有出牌，托管有机器人出牌
+    // 倒计时结束：真人连续两轮没出牌才进入托管；第一次只按不出牌处理。
     if (roomInfo.play_card_countDown <= 0) {
-      // 托管
-      roomInfo.roomUsers[userId].is_hosted = true;
-      // 机器人出牌
-      this.robotPlay(userId, roomId);
+      const roomUserInfo = roomInfo.roomUsers[userId];
+      if (roomUserInfo.is_hosted) {
+        this.robotPlay(userId, roomId);
+        return;
+      }
+
+      roomInfo.play_card_timeout_record = roomInfo.play_card_timeout_record || {};
+      roomInfo.play_card_timeout_record[userId] = (roomInfo.play_card_timeout_record[userId] || 0) + 1;
+      if (roomInfo.play_card_timeout_record[userId] >= 2) {
+        roomUserInfo.is_hosted = true;
+        this.robotPlay(userId, roomId);
+        return;
+      }
+
+      this.timeoutPass(userId, roomId);
+      return;
     }
 
     roomInfo.play_card_countDown -= 1;
   }
 
+  // 真人首次超时自动过牌
+  private static async timeoutPass(userId, roomId) {
+    const roomInfo = RoomObj[roomId];
+    const roomUserIdList = roomInfo.roomUserIdList;
+    const record = {
+      userId: userId,
+      playCard: [],
+      gameOver: false,
+      gameOverData: [],
+    };
+
+    roomInfo.play_card_record.push(record);
+
+    roomUserIdList.forEach(itemUserId => {
+      const ItemUserInfo = roomInfo.roomUsers[itemUserId];
+      wsSend(ItemUserInfo.ws, {
+        type: "userPlayCard",
+        code: 200,
+        data: {
+          ...record,
+          autoPass: true,
+          victoryStatus: VictoryStatus.NONE,
+          play_card_record: roomInfo.play_card_record,
+          roomUsers: {},
+        },
+        message: '成功'
+      })
+    })
+
+    webSocketPlayCardRouter.switchNextUserPlay(roomId, userId);
+  }
 
   // 机器人出牌 (托管出牌)
   private static async robotPlay(userId, roomId) {
@@ -358,6 +401,7 @@ export class webSocketPlayCardRouter {
     roomInfo.current_snatch_landlord_user = ""; // 当前抢地主玩家
     roomInfo.play_card_record = []; // 玩家出牌记录
     roomInfo.current_play_card_user = ""; // 当前出牌用户id
+    roomInfo.play_card_timeout_record = {}; // 连续出牌超时记录
 
     // 游戏结束，清空玩家游戏数据，可以重新开始游戏
     Object.keys(roomInfo.roomUsers).forEach(item => {
@@ -459,6 +503,10 @@ export class webSocketPlayCardRouter {
       }
 
       if (isHave) {
+        if (roomInfo.play_card_timeout_record) {
+          roomInfo.play_card_timeout_record[userInfo.user_id] = 0;
+        }
+
         // 判断玩家出的牌是否是炸弹，炸弹倍数*2
         if (CardLogic.IsBoom(getPoint(params.playCards)) || CardLogic.IsKingBoom(getPoint(params.playCards))) {
           roomInfo.room_rate *= 2;
