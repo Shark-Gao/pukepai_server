@@ -517,16 +517,17 @@ export default class CardHint {
       // 找到三张牌
       const threeCards = userCards.filter(c => c.value === threeValue).slice(0, 3);
 
-      // 找到两张其他对牌(排除三带的牌 和 4张的炸弹 且 牌是对子的)
-      const otherValues = [...valueMap].filter(([value, count]) => value != threeValue.toString() && count >= 2 && count != 4).sort((a, b) => CardSize[a[0]] - CardSize[b[0]]);
-      if (otherValues.length > 0) {
-        for (const [v, c] of otherValues) {
-          if (c >= 2) {
-            const pairCards = userCards.filter(c => c.value === parseInt(v)).slice(0, 2);
-            result.push([...threeCards.map(c => c.index), ...pairCards.map(c => c.index)]);
-            break;
-          }
-        }
+      // 找到任意两张其他牌作为带牌，优先选择非炸弹的较小牌。
+      let otherCards = userCards
+        .filter(c => c.value !== threeValue && valueMap.get(c.value) !== 4)
+        .sort((a, b) => CardSize[a.value] - CardSize[b.value]);
+      if (otherCards.length < 2) {
+        otherCards = userCards
+          .filter(c => c.value !== threeValue)
+          .sort((a, b) => CardSize[a.value] - CardSize[b.value]);
+      }
+      if (otherCards.length >= 2) {
+        result.push([...threeCards.map(c => c.index), ...otherCards.slice(0, 2).map(c => c.index)]);
       }
 
       // console.log("threeCards", threeCards)

@@ -166,7 +166,11 @@ function pushTurnToUser(roomId: string, userId: string): void {
                 return;
             }
 
-            recordPassAndAdvance(roomId, userId);
+            if (isFreePlay) {
+                robotPlayAndAdvance(roomId, userId);
+            } else {
+                recordPassAndAdvance(roomId, userId);
+            }
             return;
         }
         roomInfo.play_card_countDown -= 1;

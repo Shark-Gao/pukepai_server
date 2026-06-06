@@ -85,7 +85,7 @@ export class webSocketPlayCardRouter {
       })
     })
 
-    // 倒计时结束：真人连续两轮没出牌才进入托管；第一次只按不出牌处理。
+    // 倒计时结束：真人连续两轮没出牌才进入托管；自由出牌时不能过牌，超时也必须出牌。
     if (roomInfo.play_card_countDown <= 0) {
       const roomUserInfo = roomInfo.roomUsers[userId];
       if (roomUserInfo.is_hosted) {
@@ -101,7 +101,12 @@ export class webSocketPlayCardRouter {
         return;
       }
 
-      this.timeoutPass(userId, roomId);
+      const isFreePlay = !lastRecord?.userId || lastRecord?.userId == userId;
+      if (isFreePlay) {
+        this.robotPlay(userId, roomId);
+      } else {
+        this.timeoutPass(userId, roomId);
+      }
       return;
     }
 
@@ -150,13 +155,18 @@ export class webSocketPlayCardRouter {
 
     const isFreePlay = !lastRecord?.userId || lastRecord?.userId == userId;
     const aiStrategy = getDoudizhuAiStrategy(roomInfo.robot_level);
-    const playCard = aiStrategy.choosePlayCards({
+    let playCard = aiStrategy.choosePlayCards({
       roomInfo,
       userId,
       handCards: roomUserInfo.user_card,
       lastRecord,
       isFreePlay,
     });
+
+    if (isFreePlay && playCard.length <= 0) {
+      const fallbackCard = roomUserInfo.user_card?.[0];
+      playCard = fallbackCard === undefined ? [] : [fallbackCard];
+    }
 
     if (playCard.length > 0) {
       // 玩家扑克牌中删除牌
@@ -199,6 +209,8 @@ export class webSocketPlayCardRouter {
           ...record,
           // 是否所有用户都被托管
           isAllHosted: roomUserIdList.every(itemUserId => roomInfo.roomUsers[itemUserId].is_hosted),
+          // 当前自动出牌用户是否已经托管
+          isHosted: roomUserInfo.is_hosted,
           // 胜利状态 0 进行中 1 胜利 2 失败
           victoryStatus: roomUserInfo.user_card.length === 0 ? (gameOverData[0].some(item => item.user_id === itemUserId) ? VictoryStatus.VICTORY : VictoryStatus.FAIL) : VictoryStatus.NONE,
           // 返回所有用户的出牌记录

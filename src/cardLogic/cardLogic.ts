@@ -178,23 +178,12 @@ export default class CardLogic {
       return false;
     }
 
-    if (
-      cardList[0].value == cardList[1].value &&
-      cardList[1].value == cardList[2].value
-    ) {
-      if (cardList[3].value == cardList[4].value) {
-        return true;
-      }
-    } else if (
-      cardList[2].value == cardList[3].value &&
-      cardList[3].value == cardList[4].value
-    ) {
-      if (cardList[0].value == cardList[1].value) {
-        return true;
-      }
+    const countMap = {};
+    for (const card of cardList) {
+      countMap[card.value] = (countMap[card.value] || 0) + 1;
     }
 
-    return false;
+    return Object.keys(countMap).some(key => countMap[key] === 3);
   };
 
   //四张炸弹
