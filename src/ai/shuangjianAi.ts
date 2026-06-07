@@ -454,15 +454,16 @@ export class SimpleShuangjianAiStrategy extends BaseShuangjianAiStrategy {
     const targetSjType = targetType.extra?.type;
     if (targetSjType === SjCardType.SINGLE) {
       if (teammateRemain === 1 || hasOpponentOneCard) return [];
+      const beatSingles = this.onlySingles(beatCandidates, impl);
       if (relation === 'downstream') {
-        const downstreamSingles = getRankRangeCandidates(this.onlySingles(beatCandidates, impl), 8, 13, impl, targetType);
-        return sortSinglesByPower(downstreamSingles, true)[0] || [];
+        const downstreamSingles = getRankRangeCandidates(beatSingles, 8, 13, impl, targetType);
+        return sortSinglesByPower(downstreamSingles, true)[0] || sortSinglesByPower(beatSingles)[0] || [];
       }
       if (relation === 'upstream') {
-        const upstreamSingles = getRankRangeCandidates(this.onlySingles(beatCandidates, impl), 14, 15, impl, targetType);
-        return sortSinglesByPower(upstreamSingles)[0] || [];
+        const upstreamSingles = getRankRangeCandidates(beatSingles, 14, 15, impl, targetType);
+        return sortSinglesByPower(upstreamSingles)[0] || sortSinglesByPower(beatSingles)[0] || [];
       }
-      return [];
+      return sortSinglesByPower(beatSingles)[0] || [];
     }
 
     if (targetSjType === SjCardType.PAIR) {
@@ -645,12 +646,12 @@ export class MediumShuangjianAiStrategy extends SimpleShuangjianAiStrategy {
       const singles = this.onlySingles(beatCandidates, impl);
       if (targetDanger) return sortSinglesByPower(singles)[0] || [];
       if (relation === 'downstream') {
-        return sortSinglesByPower(getRankRangeCandidates(singles, 8, 13, impl, targetType), true)[0] || [];
+        return sortSinglesByPower(getRankRangeCandidates(singles, 8, 13, impl, targetType), true)[0] || sortSinglesByPower(singles)[0] || [];
       }
       if (relation === 'upstream') {
-        return sortSinglesByPower(getRankRangeCandidates(singles, 14, 15, impl, targetType))[0] || [];
+        return sortSinglesByPower(getRankRangeCandidates(singles, 14, 15, impl, targetType))[0] || sortSinglesByPower(singles)[0] || [];
       }
-      return [];
+      return sortSinglesByPower(singles)[0] || [];
     }
 
     if (targetSjType === SjCardType.PAIR) {

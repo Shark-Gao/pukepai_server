@@ -69,6 +69,39 @@ function isFreePlayTurn(roomInfo: any, userId: string, lastRecord?: any): boolea
     return !lastRecord || lastRecord.userId === userId;
 }
 
+function isTrickClosedAfterLastPlay(roomInfo: any, lastInfo: { record: any; index: number }): boolean {
+    const records = (roomInfo.play_card_record || []) as any[];
+    const roomUsers = roomInfo.roomUsers as any;
+    const lastUserId = lastInfo.record.userId;
+    const aliveUserIds = ((roomInfo.roomUserIdList || []) as string[])
+        .filter(id => !!id && roomUsers[id]?.user_card?.length > 0);
+    const needPassUserIds = aliveUserIds.filter(id => id !== lastUserId);
+    if (needPassUserIds.length <= 0) return true;
+
+    const passedAfterLastPlay = new Set<string>();
+    for (let i = lastInfo.index + 1; i < records.length; i++) {
+        if (records[i]?.playCard?.length === 0) {
+            passedAfterLastPlay.add(records[i].userId);
+        }
+    }
+    return needPassUserIds.every(id => passedAfterLastPlay.has(id));
+}
+
+function getCurrentTargetRecord(roomInfo: any, userId: string): any | null {
+    const lastInfo = getLastNonEmptyRecord(roomInfo);
+    if (!lastInfo) return null;
+    if (isTrickClosedAfterLastPlay(roomInfo, lastInfo)) return null;
+    if (isFreePlayTurn(roomInfo, userId, lastInfo.record)) return null;
+    return lastInfo.record;
+}
+
+function getLastFinishedUserId(roomInfo: any): string {
+    const lastInfo = getLastNonEmptyRecord(roomInfo);
+    const lastUserId = lastInfo?.record?.userId || '';
+    const roomUsers = roomInfo.roomUsers as any;
+    return lastUserId && roomUsers[lastUserId]?.user_card?.length <= 0 ? lastUserId : '';
+}
+
 function getUserCamp(roomInfo: any, userId: string): string[] {
     const landlordCamp = (roomInfo.landlord_camp || []) as string[];
     const farmerCamp = (roomInfo.farmer_camp || []) as string[];
@@ -131,10 +164,9 @@ function pushTurnToUser(roomId: string, userId: string): void {
 
     const userIds: string[] = (roomInfo.roomUserIdList as string[]).filter(id => !!id);
     const tick = () => {
-        // Build the most recent non-empty record (used as "yapai" reference).
-        const lastRecord = (roomInfo.play_card_record as any[])
-            .reduceRight((pre, cur) => (!pre && cur.playCard.length > 0 ? cur : pre), null);
-        const isFreePlay = isFreePlayTurn(roomInfo, userId, lastRecord);
+        const targetRecord = getCurrentTargetRecord(roomInfo, userId);
+        const isFreePlay = !targetRecord;
+        const finishedUserId = isFreePlay ? getLastFinishedUserId(roomInfo) : '';
         for (const uid of userIds) {
             const me = roomUsers[uid];
             wsSend(me.ws, {
@@ -144,6 +176,7 @@ function pushTurnToUser(roomId: string, userId: string): void {
                     userId,
                     downTime: roomInfo.play_card_countDown,
                     isYaPai: !isFreePlay,
+                    finishedUserId,
                     userCard: me.user_card,
                 },
                 message: '成功',
@@ -199,9 +232,8 @@ function robotPlayAndAdvance(roomId: string, userId: string): void {
         return;
     }
 
-    const lastRecord = (roomInfo.play_card_record as any[])
-        .reduceRight((pre, cur) => (!pre && cur.playCard.length > 0 ? cur : pre), null);
-    const isFreePlay = isFreePlayTurn(roomInfo, userId, lastRecord);
+    const lastRecord = getCurrentTargetRecord(roomInfo, userId);
+    const isFreePlay = !lastRecord;
     const aiStrategy = getShuangjianAiStrategy(roomInfo.robot_level);
     let playCards: number[] = aiStrategy.choosePlayCards({
         roomInfo,
@@ -252,10 +284,9 @@ function robotPlayAndAdvance(roomId: string, userId: string): void {
         console.error('[Shuangjian] robot play failed', error);
         const latestRoomInfo = RoomObj[roomId];
         if (!latestRoomInfo || latestRoomInfo.current_play_card_user !== userId) return;
-        const latestRecord = (latestRoomInfo.play_card_record as any[])
-            .reduceRight((pre, cur) => (!pre && cur.playCard.length > 0 ? cur : pre), null);
+        const latestRecord = getCurrentTargetRecord(latestRoomInfo, userId);
         const latestRoomUsers = latestRoomInfo.roomUsers as any;
-        if (isFreePlayTurn(latestRoomInfo, userId, latestRecord)) {
+        if (!latestRecord) {
             const fallbackCard = (latestRoomUsers[userId]?.user_card || [])[0];
             if (fallbackCard !== undefined) {
                 handleShuangjianUserPlayCard({
@@ -380,9 +411,8 @@ export async function handleShuangjianUserPlayCard(
     // ----- Pass -----
     if (playCards.length === 0) {
         // A pass is only legal when there is a play to follow (yapai).
-        const lastRecord = (roomInfo.play_card_record as any[])
-            .reduceRight((pre, cur) => (!pre && cur.playCard.length > 0 ? cur : pre), null);
-        if (isFreePlayTurn(roomInfo, userInfo.user_id, lastRecord)) {
+        const lastRecord = getCurrentTargetRecord(roomInfo, userInfo.user_id);
+        if (!lastRecord) {
             wsSend(ws, { type: MSG_PLAY_CARD, code: 400, message: '请出牌' });
             return;
         }
@@ -411,9 +441,8 @@ export async function handleShuangjianUserPlayCard(
         return;
     }
     // ----- Compare with last play (if pressing) -----
-    const lastRecord = (roomInfo.play_card_record as any[])
-        .reduceRight((pre, cur) => (!pre && cur.playCard.length > 0 ? cur : pre), null);
-    if (!isFreePlayTurn(roomInfo, userInfo.user_id, lastRecord) && lastRecord && lastRecord.userId !== userInfo.user_id) {
+    const lastRecord = getCurrentTargetRecord(roomInfo, userInfo.user_id);
+    if (lastRecord) {
         const lastType = impl.judgeCardType(lastRecord.playCard);
         // compareCards returns >0 if current play beats previous play.
         if (impl.compareCards(lastType, myType) <= 0) {
