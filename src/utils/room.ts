@@ -77,6 +77,7 @@ interface RoomUserStatus {
   get_ingots: number; // 游戏结束获得元宝（输了可能是负数）
   snatch_landlord_num: number; // 抢地主次数 
   is_hosted: boolean; // 是否托管
+  is_robot: boolean; // 是否机器人
 }
 
 // 游戏房间状态抽象类（不入库的房间状态数据）
@@ -199,7 +200,7 @@ class Room extends GameRoomStatus { // 实现抽象属性
 // 房间对象
 const RoomObj: RoomObj = {};
 
-function buildRoomUserStatus(userInfo: any, ready: PlayerReadyStatus = PlayerReadyStatus.UNREADY, isHosted: boolean = false): RoomUserStatus {
+function buildRoomUserStatus(userInfo: any, ready: PlayerReadyStatus = PlayerReadyStatus.UNREADY, isHosted: boolean = false, isRobot: boolean = false): RoomUserStatus {
   return {
     id: userInfo.id,
     user_card: [],
@@ -216,6 +217,7 @@ function buildRoomUserStatus(userInfo: any, ready: PlayerReadyStatus = PlayerRea
     get_ingots: 0,
     snatch_landlord_num: 0,
     is_hosted: isHosted,
+    is_robot: isRobot,
   };
 }
 
@@ -272,7 +274,7 @@ const CreateRoom = async (
 
   for (let i = 1; i <= safeRobotCount; i++) {
     const robotUser = createRobotUser(i, levelInfo?.base || 0);
-    roomUsers[robotUser.user_id] = buildRoomUserStatus(robotUser, PlayerReadyStatus.READY, true);
+    roomUsers[robotUser.user_id] = buildRoomUserStatus(robotUser, PlayerReadyStatus.READY, true, true);
     seatList[i] = robotUser.user_id;
   }
 
@@ -342,6 +344,7 @@ function userJoinRoom(userInfo: UserInfo, roomId: string) {
       get_ingots: 0, // 游戏结束获得元宝（输了可能是负数）
       snatch_landlord_num: 0, // 抢地主次数 
       is_hosted: false, // 是否被托管
+      is_robot: false, // 是否机器人
       ...userInfo,
     };
     // 存入用户id列表

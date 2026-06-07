@@ -7,6 +7,16 @@ import { webSocketDealCardsRouter } from './webSocketDealCardsRouter'
 // 房间基础路由（创建房间、获取房间信息、加入房间、准备、退出房间）
 export class webSocketRoomBaseRouter {
 
+  private static readyHostedRobots(roomInfo: any): void {
+    Object.keys(roomInfo?.roomUsers || {}).forEach(userId => {
+      const roomUser = roomInfo.roomUsers[userId];
+      if (roomUser?.is_robot) {
+        roomUser.ready = PlayerReadyStatus.READY;
+        roomUser.is_hosted = true;
+      }
+    });
+  }
+
   private static dismissRoomIfOnlyHostedUsers(roomId: string, ignoreUserId: string = ''): boolean {
     const roomInfo = RoomObj[roomId];
     const roomUsers = roomInfo?.roomUsers;
@@ -75,6 +85,7 @@ export class webSocketRoomBaseRouter {
     const roomInfo = RoomObj[params.roomId];
     // 修改准备状态
     roomInfo.roomUsers[userInfo.user_id].ready = PlayerReadyStatus.READY;
+    webSocketRoomBaseRouter.readyHostedRobots(roomInfo);
 
     // 通知所有用户，房间用户准备状态
     const roomUserIds = Object.keys(roomInfo.roomUsers);

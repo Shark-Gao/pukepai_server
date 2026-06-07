@@ -246,25 +246,29 @@ export function calcShuangjianSettlement(input: SettlementInput): {
     // Determine victory status
     let victoryStatus: VictoryStatus;
     let multiplier = 0;
+    let winningCamp: 'landlord' | 'farmer' | null = null;
     if (isBaopai) {
         // Banker (1-vs-3): banker wins iff they finish 1st (rank 1).
         const bankerRank = rankMap[bankerId] || 99;
         if (bankerRank === 1) { victoryStatus = 'baopai-win'; multiplier = 6; }
         else { victoryStatus = 'baopai-lose'; multiplier = 6; } // pay banker
     } else {
-        // 2-vs-2: depends on landlord camp's two members' ranks.
-        const lcRanks = landlordCamp.map(uid => rankMap[uid]).filter(Boolean).sort((a, b) => a - b);
-        if (lcRanks[0] === 1 && lcRanks[1] === 2) {
-            // Landlord camp finishes 1st & 2nd: 双关
-            victoryStatus = 'double';
-            multiplier = 2;
-        } else if (lcRanks[0] === 1 && lcRanks[1] && lcRanks[1] > 2) {
-            victoryStatus = 'single';
-            multiplier = 1;
-        } else if (lcRanks[0] === 1 && lcRanks[1] === 3) {
-            // 单关 (allies finish 1+3)
-            victoryStatus = 'single';
-            multiplier = 1;
+        // 2-vs-2: the camp with the head player wins, regardless of landlord/farmer side.
+        const getCampRanks = (camp: string[]) => camp.map(uid => rankMap[uid]).filter(Boolean).sort((a, b) => a - b);
+        const getCampOutcome = (ranks: number[]): { status: VictoryStatus; multiplier: number } | null => {
+            if (ranks[0] !== 1 || !ranks[1]) return null;
+            if (ranks[1] === 2) return { status: 'double', multiplier: 2 };
+            return { status: 'single', multiplier: 1 };
+        };
+
+        const landlordOutcome = getCampOutcome(getCampRanks(landlordCamp));
+        const farmerOutcome = getCampOutcome(getCampRanks(farmerCamp));
+        const outcome = landlordOutcome || farmerOutcome;
+        winningCamp = landlordOutcome ? 'landlord' : (farmerOutcome ? 'farmer' : null);
+
+        if (outcome) {
+            victoryStatus = outcome.status;
+            multiplier = outcome.multiplier;
         } else {
             // 平局 / loss
             victoryStatus = 'draw';
@@ -303,7 +307,7 @@ export function calcShuangjianSettlement(input: SettlementInput): {
         } else if (victoryStatus === 'baopai-lose') {
             getScore = uid === bankerId ? -unit * (totalSeats - 1) : unit;
         } else if (victoryStatus === 'double' || victoryStatus === 'single') {
-            getScore = inLandlord ? unit : -unit;
+            getScore = camp === winningCamp ? unit : -unit;
         } else { // draw
             if (drawAsOne) {
                 // Head +1, tail -1, middle two -1 each
