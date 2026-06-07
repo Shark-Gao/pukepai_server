@@ -417,8 +417,8 @@ export function compareShuangjian(previous: SjJudgeResult, current: SjJudgeResul
     if (wc !== wp) return wc - wp;
     // Same category: must be the same plain type to follow on.
     if (previous.type !== current.type) return -1;
-    // For plain plays, also require equal length.
-    if (previous.cards.length !== current.cards.length) return -1;
+    // 三带二允许最后一手不带够，按三张主体大小比较即可。
+    if (previous.type !== SjCardType.THREE_WITH_TWO && previous.cards.length !== current.cards.length) return -1;
     return current.mainRank - previous.mainRank;
 }
 
