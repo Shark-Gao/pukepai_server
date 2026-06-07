@@ -576,12 +576,36 @@ export default class User {
         message: '房间不存在'
       };
     } else {
+      const roomLevel = roomId && RoomObj[roomId] ? RoomObj[roomId].level : level;
+
+      if (!userId) {
+        return {
+          status: false,
+          message: '用户信息缺失'
+        };
+      }
+
+      if (roomLevel === undefined || roomLevel === null || roomLevel === '') {
+        return {
+          status: false,
+          message: '房间等级缺失'
+        };
+      }
+
       // 查询用户信息获取用户元宝
       const [userInfos]: any = await pool.inst.query(`select * from users where user_id = ?`, [userId]);
 
       if (userInfos.length > 0) {
         // 传入了房间ID，证明是要加入房间，对比当前用户元宝和房间元宝基数做对比
-        const [levelInfo]: any = await pool.inst.query(`select * from room_level where level = ?`, [roomId && RoomObj[roomId] ? RoomObj[roomId].level : level]);
+        const [levelInfo]: any = await pool.inst.query(`select * from room_level where level = ?`, [roomLevel]);
+
+        if (!levelInfo || levelInfo.length <= 0) {
+          console.log('room level config not found', roomLevel);
+          return {
+            status: false,
+            message: '房间等级配置不存在'
+          };
+        }
 
         // 用户元宝大于房间基数，运行进行下一步
         if (Number(userInfos[0].gold) >= Number(levelInfo[0].base)) {

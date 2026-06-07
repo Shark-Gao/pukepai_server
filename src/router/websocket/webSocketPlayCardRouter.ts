@@ -5,7 +5,7 @@ import CardLogic, { getPoint } from '../../cardLogic/cardLogic';
 import pool from '../../mysql'
 import { clientReturnRoomUsers } from '../../utils/tools';
 import { GameMode } from '../../gameMode/IGameMode';
-import { handleShuangjianUserPlayCard } from './webSocketShuangjianPlayCard';
+import { handleShuangjianUserPlayCard, cancelShuangjianTrusteeship } from './webSocketShuangjianPlayCard';
 import { getDoudizhuAiStrategy } from '../../ai/doudizhuAi';
 
 // 游戏结束状态
@@ -518,6 +518,22 @@ export class webSocketPlayCardRouter {
         if (roomInfo.play_card_timeout_record) {
           roomInfo.play_card_timeout_record[userInfo.user_id] = 0;
         }
+        if (roomUserInfo.is_hosted) {
+          roomUserInfo.is_hosted = false;
+          roomUserIdList.forEach(itemUserId => {
+            const ItemUserInfo = roomInfo.roomUsers[itemUserId];
+            wsSend(ItemUserInfo.ws, {
+              type: "cancelTrusteeship",
+              code: 200,
+              data: {
+                userId: userInfo.user_id,
+                currentPlayCardUser: roomInfo.current_play_card_user,
+                downTime: roomInfo.play_card_countDown,
+              },
+              message: '成功'
+            })
+          })
+        }
 
         // 判断玩家出的牌是否是炸弹，炸弹倍数*2
         if (CardLogic.IsBoom(getPoint(params.playCards)) || CardLogic.IsKingBoom(getPoint(params.playCards))) {
@@ -582,18 +598,37 @@ export class webSocketPlayCardRouter {
   })
   public async cancelTrusteeship({ ws, token, userInfo, params }: any) {
     const roomInfo = RoomObj[params.roomId];
+    const roomUsers: any = roomInfo.roomUsers;
 
-    if (roomInfo.roomUsers[userInfo.user_id]) {
-      roomInfo.roomUsers[userInfo.user_id].is_hosted = false;
+    if (roomUsers[userInfo.user_id]) {
+      if ((roomInfo.game_mode ?? GameMode.DOUDIZHU) === GameMode.SHUANGJIAN) {
+        cancelShuangjianTrusteeship(params.roomId, userInfo.user_id, roomInfo.current_play_card_user === userInfo.user_id);
+        return;
+      }
+
+      roomUsers[userInfo.user_id].is_hosted = false;
+      if (roomInfo.play_card_timeout_record) {
+        roomInfo.play_card_timeout_record[userInfo.user_id] = 0;
+      }
+      if (roomInfo.current_play_card_user === userInfo.user_id) {
+        clearInterval(roomInfo.count_down_timer);
+        roomInfo.play_card_countDown = roomInfo.play_card_time;
+        roomInfo.count_down_timer = setInterval(() => {
+          webSocketPlayCardRouter.playeCardInterval(params.roomId, userInfo.user_id)
+        }, 1000);
+        webSocketPlayCardRouter.playeCardInterval(params.roomId, userInfo.user_id);
+      }
 
       // 取消托管通知所有用户，托管的话会展示托管icon
       roomInfo.roomUserIdList.forEach(itemUserId => {
-        const ItemUserInfo = roomInfo.roomUsers[itemUserId];
+        const ItemUserInfo = roomUsers[itemUserId];
         wsSend(ItemUserInfo.ws, {
           type: "cancelTrusteeship", // 取消托管
           code: 200,
           data: {
             userId: userInfo.user_id,
+            currentPlayCardUser: roomInfo.current_play_card_user,
+            downTime: roomInfo.play_card_countDown,
           },
           message: '成功'
         })

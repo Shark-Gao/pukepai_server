@@ -152,6 +152,41 @@ function isWholeLastHandPlay(handCards: number[], playCards: number[]): boolean 
     return playCards.length > 0 && playCards.length === handCards.length;
 }
 
+function broadcastCancelTrusteeship(roomInfo: any, userId: string): void {
+    const roomUsers = roomInfo.roomUsers as any;
+    const userIds: string[] = (roomInfo.roomUserIdList as string[]).filter(id => !!id);
+    for (const uid of userIds) {
+        wsSend(roomUsers[uid].ws, {
+            type: 'cancelTrusteeship',
+            code: 200,
+            data: {
+                userId,
+                currentPlayCardUser: roomInfo.current_play_card_user,
+                downTime: roomInfo.play_card_countDown,
+            },
+            message: '成功',
+        });
+    }
+}
+
+export function cancelShuangjianTrusteeship(roomId: string, userId: string, restartCurrentTurn: boolean = false): boolean {
+    const roomInfo = RoomObj[roomId];
+    if (!roomInfo) return false;
+    const roomUsers = roomInfo.roomUsers as any;
+    const me = roomUsers[userId];
+    if (!me) return false;
+
+    me.is_hosted = false;
+    if (roomInfo.play_card_timeout_record) {
+        roomInfo.play_card_timeout_record[userId] = 0;
+    }
+    if (restartCurrentTurn && roomInfo.current_play_card_user === userId) {
+        pushTurnToUser(roomId, userId);
+    }
+    broadcastCancelTrusteeship(roomInfo, userId);
+    return true;
+}
+
 function judgeShuangjianPlayCards(impl: ShuangjianMode, handCards: number[], playCards: number[]): any {
     const playType = impl.judgeCardType(playCards);
     if (playType.valid) return playType;
@@ -316,7 +351,7 @@ function robotPlayAndAdvance(roomId: string, userId: string): void {
     handleShuangjianUserPlayCard({
         ws: me.ws,
         userInfo: me,
-        params: { roomId, playCards },
+        params: { roomId, playCards, isAutoHostedPlay: true },
     }).catch((error) => {
         console.error('[Shuangjian] robot play failed', error);
         const latestRoomInfo = RoomObj[roomId];
@@ -329,7 +364,7 @@ function robotPlayAndAdvance(roomId: string, userId: string): void {
                 handleShuangjianUserPlayCard({
                     ws: latestRoomUsers[userId].ws,
                     userInfo: latestRoomUsers[userId],
-                    params: { roomId, playCards: [fallbackCard] },
+                    params: { roomId, playCards: [fallbackCard], isAutoHostedPlay: true },
                 });
             }
         } else {
@@ -438,6 +473,10 @@ export async function handleShuangjianUserPlayCard(
     if (roomInfo.current_play_card_user && roomInfo.current_play_card_user !== userInfo.user_id) {
         wsSend(ws, { type: MSG_PLAY_CARD, code: 400, message: '还未轮到你出牌' });
         return;
+    }
+
+    if (me.is_hosted && !params.isAutoHostedPlay) {
+        cancelShuangjianTrusteeship(params.roomId, userInfo.user_id, false);
     }
 
     const playCards: number[] = Array.isArray(params.playCards) ? params.playCards.slice() : [];

@@ -90,6 +90,35 @@ function playMainRank(rank: number): number {
     return rank === 1 ? 14 : (rank === 2 ? 15 : rank);
 }
 
+function kingBombMainRank(cards: number[]): number {
+    return cards
+        .map(c => rankValue(toRealCard(c)))
+        .filter(r => r === 53 || r === 54)
+        .reduce((sum, r) => sum + (r === 54 ? 2 : 1), 0);
+}
+
+function getBestTripleRun(cards: number[]): number[] {
+    const map = countByRank(cards);
+    const tripleRanks = Object.keys(map).map(Number).filter(r => map[r] >= 3 && r !== 53 && r !== 54);
+    if (tripleRanks.length === 0) return [];
+
+    const orderedAsc = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 2];
+    tripleRanks.sort((a, b) => orderedAsc.indexOf(a) - orderedAsc.indexOf(b));
+
+    let bestRun: number[] = [];
+    for (let s = 0; s < tripleRanks.length; s++) {
+        const run = [tripleRanks[s]];
+        for (let i = s + 1; i < tripleRanks.length; i++) {
+            if (orderedAsc.indexOf(tripleRanks[i]) - orderedAsc.indexOf(run[run.length - 1]) === 1
+                && tripleRanks[i] !== 2) {
+                run.push(tripleRanks[i]);
+            } else break;
+        }
+        if (run.length > bestRun.length) bestRun = run;
+    }
+    return bestRun;
+}
+
 const INVALID: SjJudgeResult = {
     valid: false, type: SjCardType.INVALID,
     headCount: 0, kingCount: 0, fiveTenKCount: 0, fiveTenKSuited: false,
@@ -97,21 +126,11 @@ const INVALID: SjJudgeResult = {
 };
 
 export function judgeLastHandShortTripleShuangjian(cards: number[]): SjJudgeResult {
-    if (!cards || (cards.length !== 3 && cards.length !== 4)) return INVALID;
-    const map = countByRank(cards);
-    const tripleRank = Object.keys(map).map(Number)
-        .find(rank => rank !== 53 && rank !== 54 && map[rank] >= 3);
-    if (!tripleRank) return INVALID;
-    return {
-        valid: true,
-        type: SjCardType.THREE_WITH_TWO,
-        headCount: 0,
-        kingCount: 0,
-        fiveTenKCount: 0,
-        fiveTenKSuited: false,
-        mainRank: playMainRank(tripleRank),
-        cards: cards.slice(),
-    };
+    const result = judgeCardTypeShuangjian(cards, true);
+    if (result.valid && (result.type === SjCardType.THREE_WITH_TWO || result.type === SjCardType.PLANE)) {
+        return result;
+    }
+    return INVALID;
 }
 
 /**
@@ -170,7 +189,7 @@ function detectBombOrKingBomb(cards: number[]): SjJudgeResult | null {
         return {
             valid: true, type: SjCardType.KING_BOMB,
             headCount: 0, kingCount, fiveTenKCount: 0, fiveTenKSuited: false,
-            mainRank: 0, cards: cards.slice(),
+            mainRank: kingBombMainRank(cards), cards: cards.slice(),
         };
     }
 
@@ -237,30 +256,13 @@ function detectDoubleStraight(cards: number[]): SjJudgeResult | null {
  * Detect 飞机 (≥2 connected 3-of-a-kind, with optional kickers; last hand
  * may be short — we accept 3*N + k where 0 ≤ k ≤ 2*N).
  */
-function detectThreeWithTwoOrPlane(cards: number[]): SjJudgeResult | null {
-    if (cards.length < 5) return null;
-    const map = countByRank(cards);
-    const tripleRanks = Object.keys(map).map(Number).filter(r => map[r] >= 3 && r !== 53 && r !== 54);
-    if (tripleRanks.length === 0) return null;
-
-    const orderedAsc = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 2];
-    tripleRanks.sort((a, b) => orderedAsc.indexOf(a) - orderedAsc.indexOf(b));
-
-    // Try the longest run of consecutive triples first (greedy).
-    let bestRun: number[] = [];
-    for (let s = 0; s < tripleRanks.length; s++) {
-        const run = [tripleRanks[s]];
-        for (let i = s + 1; i < tripleRanks.length; i++) {
-            if (orderedAsc.indexOf(tripleRanks[i]) - orderedAsc.indexOf(run[run.length - 1]) === 1
-                && tripleRanks[i] !== 2) {
-                run.push(tripleRanks[i]);
-            } else break;
-        }
-        if (run.length > bestRun.length) bestRun = run;
-    }
+function detectThreeWithTwoOrPlane(cards: number[], allowShortTail: boolean = false): SjJudgeResult | null {
+    if (!cards || cards.length < (allowShortTail ? 3 : 5)) return null;
+    const bestRun = getBestTripleRun(cards);
+    if (bestRun.length === 0) return null;
 
     // 三带二 (single triple + 2 trailing cards of any kind)
-    if (bestRun.length === 1 && cards.length === 5) {
+    if (bestRun.length === 1 && (cards.length === 5 || (allowShortTail && cards.length >= 3 && cards.length <= 5))) {
         return {
             valid: true, type: SjCardType.THREE_WITH_TWO,
             headCount: 0, kingCount: 0, fiveTenKCount: 0, fiveTenKSuited: false,
@@ -269,11 +271,13 @@ function detectThreeWithTwoOrPlane(cards: number[]): SjJudgeResult | null {
         };
     }
 
-    // Plane: bestRun.length ≥ 2, tail length 0..2*N is acceptable.
+    // Plane: bestRun.length ≥ 2, tail length 2*N is required unless this is the player's last hand.
     if (bestRun.length >= 2) {
         const tripleSize = bestRun.length * 3;
         const tailLen = cards.length - tripleSize;
-        if (tailLen >= 0 && tailLen <= 2 * bestRun.length) {
+        const fullTailLen = 2 * bestRun.length;
+        const validTail = tailLen === fullTailLen || (allowShortTail && tailLen >= 0 && tailLen <= fullTailLen);
+        if (validTail) {
             return {
                 valid: true, type: SjCardType.PLANE,
                 headCount: 0, kingCount: 0, fiveTenKCount: 0, fiveTenKSuited: false,
@@ -293,7 +297,7 @@ function detectThreeWithTwoOrPlane(cards: number[]): SjJudgeResult | null {
  * 510K combos, bomb) so an ambiguous hand like 4 kings is treated as the
  * stronger combo.
  */
-export function judgeCardTypeShuangjian(cards: number[]): SjJudgeResult {
+export function judgeCardTypeShuangjian(cards: number[], allowShortTail: boolean = false): SjJudgeResult {
     if (!cards || cards.length === 0) return INVALID;
 
     // 1) King bomb
@@ -349,7 +353,7 @@ export function judgeCardTypeShuangjian(cards: number[]): SjJudgeResult {
         }
         return INVALID;
     }
-    const planeRes = detectThreeWithTwoOrPlane(cards);
+    const planeRes = detectThreeWithTwoOrPlane(cards, allowShortTail);
     if (planeRes) return planeRes;
 
     // 5) Straight / DoubleStraight
@@ -417,6 +421,15 @@ export function compareShuangjian(previous: SjJudgeResult, current: SjJudgeResul
     if (wc !== wp) return wc - wp;
     // Same category: must be the same plain type to follow on.
     if (previous.type !== current.type) return -1;
+    if (previous.type === SjCardType.PLANE) {
+        const previousPlane = detectThreeWithTwoOrPlane(previous.cards, true);
+        const currentPlane = detectThreeWithTwoOrPlane(current.cards, true);
+        if (!previousPlane || !currentPlane) return -1;
+        const previousTripleCount = getBestTripleRun(previous.cards).length;
+        const currentTripleCount = getBestTripleRun(current.cards).length;
+        if (previousTripleCount !== currentTripleCount) return -1;
+        return current.mainRank - previous.mainRank;
+    }
     // 三带二允许最后一手不带够，按三张主体大小比较即可。
     if (previous.type !== SjCardType.THREE_WITH_TWO && previous.cards.length !== current.cards.length) return -1;
     return current.mainRank - previous.mainRank;
