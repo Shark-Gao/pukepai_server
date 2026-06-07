@@ -86,11 +86,33 @@ function countByRank(cards: number[]): { [k: number]: number } {
     return map;
 }
 
+function playMainRank(rank: number): number {
+    return rank === 1 ? 14 : (rank === 2 ? 15 : rank);
+}
+
 const INVALID: SjJudgeResult = {
     valid: false, type: SjCardType.INVALID,
     headCount: 0, kingCount: 0, fiveTenKCount: 0, fiveTenKSuited: false,
     mainRank: 0, cards: [],
 };
+
+export function judgeLastHandShortTripleShuangjian(cards: number[]): SjJudgeResult {
+    if (!cards || (cards.length !== 3 && cards.length !== 4)) return INVALID;
+    const map = countByRank(cards);
+    const tripleRank = Object.keys(map).map(Number)
+        .find(rank => rank !== 53 && rank !== 54 && map[rank] >= 3);
+    if (!tripleRank) return INVALID;
+    return {
+        valid: true,
+        type: SjCardType.THREE_WITH_TWO,
+        headCount: 0,
+        kingCount: 0,
+        fiveTenKCount: 0,
+        fiveTenKSuited: false,
+        mainRank: playMainRank(tripleRank),
+        cards: cards.slice(),
+    };
+}
 
 /**
  * Identify a single 510K combo (one 5, one 10 and one K). Returns whether the
@@ -161,7 +183,7 @@ function detectBombOrKingBomb(cards: number[]): SjJudgeResult | null {
             valid: true, type: SjCardType.BOMB,
             headCount: cards.length, // 4-head / 5-head ... 8-head
             kingCount: 0, fiveTenKCount: 0, fiveTenKSuited: false,
-            mainRank: r === 1 ? 14 : (r === 2 ? 15 : r), // A>K, 2>A
+            mainRank: playMainRank(r), // A>K, 2>A
             cards: cards.slice(),
         };
     }
@@ -242,7 +264,7 @@ function detectThreeWithTwoOrPlane(cards: number[]): SjJudgeResult | null {
         return {
             valid: true, type: SjCardType.THREE_WITH_TWO,
             headCount: 0, kingCount: 0, fiveTenKCount: 0, fiveTenKSuited: false,
-            mainRank: bestRun[0] === 1 ? 14 : (bestRun[0] === 2 ? 15 : bestRun[0]),
+            mainRank: playMainRank(bestRun[0]),
             cards: cards.slice(),
         };
     }
@@ -255,7 +277,7 @@ function detectThreeWithTwoOrPlane(cards: number[]): SjJudgeResult | null {
             return {
                 valid: true, type: SjCardType.PLANE,
                 headCount: 0, kingCount: 0, fiveTenKCount: 0, fiveTenKSuited: false,
-                mainRank: bestRun[0] === 1 ? 14 : (bestRun[0] === 2 ? 15 : bestRun[0]),
+                mainRank: playMainRank(bestRun[0]),
                 cards: cards.slice(),
             };
         }
@@ -321,7 +343,7 @@ export function judgeCardTypeShuangjian(cards: number[]): SjJudgeResult {
             return {
                 valid: true, type: SjCardType.PAIR,
                 headCount: 0, kingCount: 0, fiveTenKCount: 0, fiveTenKSuited: false,
-                mainRank: r0 === 1 ? 14 : (r0 === 2 ? 15 : r0),
+                mainRank: playMainRank(r0),
                 cards: cards.slice(),
             };
         }

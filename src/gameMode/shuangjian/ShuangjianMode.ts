@@ -286,6 +286,8 @@ export class ShuangjianMode extends IGameMode {
      */
     private startPlay(roomInfo: any): void {
         roomInfo.gameStatus = 2; // GameStatus.START — keep as numeric to avoid circular import
+        roomInfo.play_card_time = 60;
+        roomInfo.play_card_countDown = roomInfo.play_card_time;
         roomInfo.current_play_card_user = roomInfo.landlord_id;
         const userIds = roomInfo.roomUserIdList.filter((id: string) => !!id);
         for (const uid of userIds) {

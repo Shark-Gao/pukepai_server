@@ -1,5 +1,5 @@
 import { ShuangjianMode, toRealCard } from '../gameMode/shuangjian/ShuangjianMode';
-import { SjCardType } from '../gameMode/shuangjian/ShuangjianCardLogic';
+import { judgeLastHandShortTripleShuangjian, SjCardType } from '../gameMode/shuangjian/ShuangjianCardLogic';
 import { RobotLevel, RobotPlayDecisionContext, ShuangjianAiStrategy, normalizeRobotLevel } from './types';
 
 function rankValue(card: number): number {
@@ -344,9 +344,13 @@ abstract class BaseShuangjianAiStrategy implements ShuangjianAiStrategy {
       .sort((a, b) => rankPower(a) - rankPower(b));
     const candidates: number[][] = [];
 
+    if (judgeLastHandShortTripleShuangjian(handCards).valid) {
+      candidates.push(handCards.slice());
+    }
+
     for (const rank of rankList) {
       candidates.push([grouped[rank][0]]);
-      if (rank !== 53 && rank !== 54 && grouped[rank].length >= 2) {
+      if (rank !== 53 && rank !== 54 && grouped[rank].length === 2) {
         candidates.push(grouped[rank].slice(0, 2));
       }
       if (rank !== 53 && rank !== 54 && grouped[rank].length >= 3) {

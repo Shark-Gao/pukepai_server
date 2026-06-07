@@ -540,9 +540,7 @@ export class webSocketDealCardsRouter {
     const roomInfo = RoomObj[params.roomId];
     const roomUsers = roomInfo.roomUsers as Record<string, any>;
     const roomUserKeys = Object.keys(roomUsers);
-    roomUserKeys.forEach(itemUserId => {
-      roomUsers[itemUserId].mingpai = true;
-    });
+    roomUsers[userInfo.user_id].mingpai = true;
     // 房间倍率*2
     roomInfo.room_rate *= 2;
     // 通知客户端更新房间倍率
@@ -550,10 +548,9 @@ export class webSocketDealCardsRouter {
 
     console.log("明牌倍率*2", roomInfo.room_rate);
 
-    // 通知所有用户明牌了
+    // 通知所有用户明牌了，只公开发起明牌玩家的真实手牌
     roomUserKeys.forEach(itemUserId => {
-      // 明牌后所有玩家都可以看到全员真实手牌
-      const newRoomUsers = clientReturnRoomUsers(roomUsers, itemUserId, false);
+      const newRoomUsers = clientReturnRoomUsers(roomUsers, itemUserId);
 
       // 获取用户信息
       const ItemUserInfo = roomUsers[itemUserId]
@@ -562,7 +559,36 @@ export class webSocketDealCardsRouter {
         code: 200,
         data: {
           userId: userInfo.user_id, // 明牌用户
-          roomUsers: newRoomUsers, // 明牌后返回所有玩家的信息
+          roomUsers: newRoomUsers, // 按接收者过滤后的玩家信息
+        },
+        message: '成功'
+      });
+    });
+  }
+
+  // 测试明牌：仅供测试面板使用，允许查看全员真实手牌
+  @authSocketToken({
+    verifyRoomId: true
+  })
+  public async testMingPai({ ws, token, userInfo, params }: any) {
+    const roomInfo = RoomObj[params.roomId];
+    const roomUsers = roomInfo.roomUsers as Record<string, any>;
+    const roomUserKeys = Object.keys(roomUsers);
+    roomUserKeys.forEach(itemUserId => {
+      roomUsers[itemUserId].mingpai = true;
+    });
+
+    roomUserKeys.forEach(itemUserId => {
+      const newRoomUsers = clientReturnRoomUsers(roomUsers, itemUserId);
+
+      // 获取用户信息
+      const ItemUserInfo = roomUsers[itemUserId]
+      wsSend(ItemUserInfo.ws, {
+        type: "mingPai",
+        code: 200,
+        data: {
+          userId: userInfo.user_id, // 测试触发用户
+          roomUsers: newRoomUsers, // 测试明牌返回全员信息
         },
         message: '成功'
       });

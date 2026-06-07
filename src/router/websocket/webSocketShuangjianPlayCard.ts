@@ -22,6 +22,7 @@ import { wsSend } from './webSocket';
 import { clientReturnRoomUsers } from '../../utils/tools';
 import { GameMode } from '../../gameMode/IGameMode';
 import { ShuangjianMode } from '../../gameMode/shuangjian/ShuangjianMode';
+import { judgeLastHandShortTripleShuangjian } from '../../gameMode/shuangjian/ShuangjianCardLogic';
 import { getShuangjianAiStrategy } from '../../ai/shuangjianAi';
 
 /** Per-play broadcast type used by the Shuangjian client. */
@@ -147,6 +148,42 @@ function getTeammateFreePlayUserAfterAllPass(roomInfo: any): string | null {
     return aliveUserIds.every(id => passedAfterLastPlay.has(id)) ? teammateId : null;
 }
 
+function isWholeLastHandPlay(handCards: number[], playCards: number[]): boolean {
+    return playCards.length > 0 && playCards.length === handCards.length;
+}
+
+function judgeShuangjianPlayCards(impl: ShuangjianMode, handCards: number[], playCards: number[]): any {
+    const playType = impl.judgeCardType(playCards);
+    if (playType.valid) return playType;
+    if (isWholeLastHandPlay(handCards, playCards)) {
+        const shortTripleType = judgeLastHandShortTripleShuangjian(playCards);
+        if (shortTripleType.valid) {
+            return {
+                valid: true,
+                cardType: shortTripleType.type,
+                weight: shortTripleType.mainRank,
+                extra: shortTripleType,
+            };
+        }
+    }
+    return playType;
+}
+
+function judgeShuangjianRecordedPlayCards(impl: ShuangjianMode, playCards: number[]): any {
+    const playType = impl.judgeCardType(playCards);
+    if (playType.valid) return playType;
+    const shortTripleType = judgeLastHandShortTripleShuangjian(playCards);
+    if (shortTripleType.valid) {
+        return {
+            valid: true,
+            cardType: shortTripleType.type,
+            weight: shortTripleType.mainRank,
+            extra: shortTripleType,
+        };
+    }
+    return playType;
+}
+
 /**
  * Cancel any active timer and notify the next player it's their turn.
  */
@@ -254,9 +291,9 @@ function robotPlayAndAdvance(roomId: string, userId: string): void {
 
     if (playCards.length > 0) {
         const impl = roomInfo.gameModeImpl as ShuangjianMode;
-        const playType = impl.judgeCardType(playCards);
+        const playType = judgeShuangjianPlayCards(impl, me.user_card || [], playCards);
         const owns = playCards.every(card => (me.user_card || []).indexOf(card) >= 0);
-        const canPress = isFreePlay || impl.compareCards(impl.judgeCardType(lastRecord.playCard || []), playType) > 0;
+        const canPress = isFreePlay || impl.compareCards(judgeShuangjianRecordedPlayCards(impl, lastRecord.playCard || []), playType) > 0;
         if (!owns || !playType.valid || !canPress) {
             playCards = [];
         }
@@ -435,7 +472,7 @@ export async function handleShuangjianUserPlayCard(
 
     // ----- Validate card type -----
     const impl = roomInfo.gameModeImpl as ShuangjianMode;
-    const myType = impl.judgeCardType(playCards);
+    const myType = judgeShuangjianPlayCards(impl, me.user_card || [], playCards);
     if (!myType.valid) {
         wsSend(ws, { type: MSG_PLAY_CARD, code: 400, message: '牌型不合法' });
         return;
@@ -443,7 +480,7 @@ export async function handleShuangjianUserPlayCard(
     // ----- Compare with last play (if pressing) -----
     const lastRecord = getCurrentTargetRecord(roomInfo, userInfo.user_id);
     if (lastRecord) {
-        const lastType = impl.judgeCardType(lastRecord.playCard);
+        const lastType = judgeShuangjianRecordedPlayCards(impl, lastRecord.playCard || []);
         // compareCards returns >0 if current play beats previous play.
         if (impl.compareCards(lastType, myType) <= 0) {
             wsSend(ws, { type: MSG_PLAY_CARD, code: 400, message: '管不上上家' });
