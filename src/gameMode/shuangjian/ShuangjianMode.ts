@@ -465,14 +465,20 @@ export class ShuangjianMode extends IGameMode {
         roomInfo._shuangjian_victory_status = victoryStatus as VictoryStatus;
         roomInfo._shuangjian_award_map = awardMap;
 
-        // Convert to IGameMode SettlementResult shape
-        return results.map((r: SettlementUserResult) => ({
-            userId: r.userId,
-            rank: r.rank,
-            getScore: r.getScore,
-            awards: awardMap[r.userId],
-            camp: r.camp,
-        }));
+        // Convert to IGameMode SettlementResult shape.
+        // Win/loss is determined by final hand state: empty hand wins, otherwise loses.
+        return results.map((r: SettlementUserResult) => {
+            const finalHand = roomInfo.roomUsers[r.userId]?.user_card || [];
+            const finished = finalHand.length === 0;
+            const scoreMagnitude = Math.abs(Number(r.getScore || 0)) || (roomInfo.room_base || 1);
+            return {
+                userId: r.userId,
+                rank: r.rank,
+                getScore: finished ? scoreMagnitude : -scoreMagnitude,
+                awards: awardMap[r.userId],
+                camp: r.camp,
+            };
+        });
     }
     async saveRecordMysql(roomInfo: any, settlement: SettlementResult[]): Promise<void> {
         // Stash settlement so the storage layer can flatten it into row form.
