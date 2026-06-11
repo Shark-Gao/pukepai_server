@@ -197,4 +197,45 @@ export class webSocketRoomBaseRouter {
       data: roomInfo.roomUsers[userInfo.user_id] ? true : false // 判断用户是否还在房间中
     });
   }
+
+  // 快捷语音
+  @authSocketToken({
+    verifyRoomId: true
+  })
+  public async quickVoice({ ws, token, userInfo, params }: any) {
+    const roomInfo = RoomObj[params.roomId];
+    const sender = roomInfo?.roomUsers?.[userInfo.user_id];
+    const voiceId = Number(params.voiceId);
+
+    if (!sender) {
+      return wsSend(ws, {
+        type: "quickVoice",
+        code: 400,
+        message: '您不在该房间'
+      });
+    }
+
+    if (!Number.isInteger(voiceId) || voiceId < 1 || voiceId > 12) {
+      return wsSend(ws, {
+        type: "quickVoice",
+        code: 400,
+        message: '快捷语音不存在'
+      });
+    }
+
+    const roomUserIds = Object.keys(roomInfo.roomUsers || {});
+    roomUserIds.forEach(userId => {
+      const roomUser = roomInfo.roomUsers[userId];
+      wsSend(roomUser.ws, {
+        type: "quickVoice",
+        code: 200,
+        data: {
+          userId: userInfo.user_id,
+          userName: sender.user_name,
+          voiceId,
+        },
+        message: '成功'
+      });
+    });
+  }
 }
